@@ -24,9 +24,6 @@
 /// length    4 bytes    Total length of the CQC instruction packet.
 /// ```
 ///
-/// Possible message types are listed below. Depending on the message type
-/// additional headers may be required.
-///
 /// ## Possible Message Types
 ///
 /// ```text
@@ -49,6 +46,12 @@
 ///  22      Command sequence not supported.
 ///  23      Timeout.
 /// ```
+///
+/// A CQC Command Header MUST follow the CQC Header for the following messages:
+///
+///  - Execute a command list (msg_type=1).
+///  - Start executing command list repeatedly (msg_type=2).
+///  - Get creation time of qubit (msg_type=8).
 
 pub struct CqcHdr {
     pub version: u8,
@@ -87,13 +90,14 @@ pub enum CqcErr {
 
 /// # CQC Command Header
 ///
-/// If the message type is a command list (msg_type=1), a repeated command list
-/// (msg_type=2) or a get for qubit creation time (msg_type=8), then the
-/// following additional command header must be supplied.  It identifies the
-/// specific instruction to execute, as well as the qubit ID on which to
-/// perform this instructions.  For rotations, two qubit gates, request to send
-/// or receive, and produce entanglement, the CQC Xtra Header is required
-/// supplying further information.
+/// A CQC Command Header identifies the specific instruction to execute, as
+/// well as the qubit ID on which to perform this instructions.
+///
+/// A CQC Command Header MUST follow the CQC Header for the following messages:
+///
+///  - Execute a command list (msg_type=1).
+///  - Start executing command list repeatedly (msg_type=2).
+///  - Get creation time of qubit (msg_type=8).
 ///
 /// ```text
 ///  0                   1                   2                   3
@@ -137,6 +141,15 @@ pub enum CqcErr {
 ///  20      CNOT Gate with this as control.
 ///  21      CPHASE Gate with this as control.
 /// ```
+///
+/// A CQC Xtra Header MUST follow the CQC Command Header for the following
+/// instructions:
+///
+///  - Send qubit to another node (instr=5).
+///  - Ask to receive qubit (instr=6).
+///  - Ask to receive qubit (instr=6).
+///  - Rotations (instr=14-16).
+///  - Two qubit gates (instr=20,21).
 ///
 /// ## Command options
 ///
@@ -208,10 +221,16 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 
 /// # CQC Xtra Header
 ///
-/// Additional header containing further information.  The following commands
-/// require an Xtra Header when issued to the CQC Backend: send (instr=5), recv
-/// (instr=6), X rotation (instr=10), Z rotation (instr=11), Y rotation
-/// (instr=12), CNOT (instr=20), CPHASE (instr=21).
+/// Additional header containing further information for certain commands.
+///
+/// A CQC Xtra Header is required to follow the CQC Command Header for the
+/// following instructions:
+///
+///  - Send qubit to another node (instr=5).
+///  - Ask to receive qubit (instr=6).
+///  - Ask to receive qubit (instr=6).
+///  - Rotations (instr=14-16).
+///  - Two qubit gates (instr=20,21).
 ///
 /// ```text
 ///  0                   1                   2                   3
