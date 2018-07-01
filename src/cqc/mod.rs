@@ -1,13 +1,5 @@
 //! # CQC Interface
 //!
-//! The Classical-Quantum Combiner (CQC) interface is used to program quantum
-//! networking nodes to create, transmit, and manipulate qubits.
-//!
-//! The CQC interface will be used to interact with the Dutch demonstration
-//! network, currently under development at QuTech in the Netherlands. At
-//! present, the CQC interface is supported only by the quantum network
-//! simulator [Simulaqron](http://www.simulaqron.org/).
-//!
 //! This module documents the [CQC Interface
 //! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
 //! and defines the necessary constants and structures.
@@ -32,7 +24,7 @@ pub struct Request {
 
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
-    pub xtra_hdr: Option<XtraHdr>
+    pub xtra_hdr: Option<XtraHdr>,
 }
 
 /// # Response
@@ -43,7 +35,7 @@ pub struct ReqCmd {
 
 pub struct Response {
     pub msg_hdr: CqcHdr,
-    pub notify: Option<RspNotify>
+    pub notify: Option<RspNotify>,
 }
 
 pub enum RspNotify {

@@ -1,3 +1,7 @@
+//! # CQC Interface Headers
+//!
+//! This module documents and defines the CQC protocol headers.
+
 /// # CQC Header
 ///
 /// Every CQC message begins with a CQC header.
@@ -38,7 +42,7 @@
 ///  7       Measurement outcome.
 ///  8       Get creation time of qubit.
 ///  9       Inform about time.
-///  10      Inform about time.
+///  10      Created new qubit.
 ///
 ///  20      General purpose error (no details).
 ///  21      No more qubits available.
@@ -70,7 +74,7 @@ pub enum CqcTp {
     Measout = 7, // Measurement outcome.
     GetTime = 8, // Get creation time of qubit.
     InfTime = 9, // Inform about time.
-    NewOk = 10,  // Inform about time.
+    NewOk = 10,  // Created new qubit.
 }
 
 #[repr(u8)]
@@ -118,7 +122,7 @@ pub enum CqcErr {
 ///  5       Send qubit to another node.
 ///  6       Ask to receive qubit.
 ///  7       Create EPR pair with the specified node.
-///  8       Create EPR pair with the specified node.
+///  8       Receive EPR pair.
 ///
 ///  10      Pauli X.
 ///  11      Pauli Z.
@@ -181,17 +185,17 @@ pub enum Cmd {
     Send = 5,           // Send qubit to another node.
     Recv = 6,           // Ask to receive qubit.
     Epr = 7,            // Create EPR pair with the specified node.
-    EprRecv = 8,        // Create EPR pair with the specified node.
+    EprRecv = 8,        // Receive EPR pair.
 
-    X = 10,     // Pauli X.
-    Z = 11,     // Pauli Z.
-    Y = 12,     // Pauli Y.
-    T = 13,     // T Gate.
+    X = 10,    // Pauli X.
+    Z = 11,    // Pauli Z.
+    Y = 12,    // Pauli Y.
+    T = 13,    // T Gate.
     RotX = 14, // Rotation over angle around X in pi/256 increments.
     RotY = 15, // Rotation over angle around Y in pi/256 increments.
     RotZ = 16, // Rotation over angle around Z in pi/256 increments.
-    H = 17,     // Hadamard Gate.
-    K = 18,     // K Gate - taking computational to Y eigenbasis.
+    H = 17,    // Hadamard Gate.
+    K = 18,    // K Gate - taking computational to Y eigenbasis.
 
     Cnot = 20,   // CNOT Gate with this as control.
     Cphase = 21, // CPHASE Gate with this as control.
@@ -319,7 +323,7 @@ pub struct NotifyHdr {
 /// |                           timestamp                           |
 /// |                                                               |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                              tog                              |
+/// |                              ToG                              |
 /// |                                                               |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |            goodness           |       DF      |     align     |
@@ -335,7 +339,7 @@ pub struct NotifyHdr {
 /// app_id_B   2 bytes    App ID of other node.
 /// id_AB      4 bytes    Entanglement ID.
 /// timestamp  8 bytes    Time of creation.
-/// tog        8 bytes    Time of goodness.
+/// ToG        8 bytes    Time of goodness.
 /// goodness   2 bytes    Goodness (estimate of the fidelity of state).
 /// DF         1 byte     Directionality flag (0=Mid, 1=node_A, 2=node_B).
 /// align      1 byte     4 byte alignment.
