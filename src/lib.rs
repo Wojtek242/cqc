@@ -13,3 +13,5 @@
 //! not putting any runtime constraints on the user.
 
 pub mod cqc;
+pub mod encode;
+pub mod decode;
