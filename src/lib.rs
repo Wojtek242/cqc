@@ -31,8 +31,8 @@ pub struct Request {
 /// # Command Request
 ///
 /// A command request follows the CQC Header for certain message types.  It
-/// consists of the Command Header and additionally, certain command types
-/// require an Xtra header.
+/// consists of the Command Header and for certain command types an additional
+/// Xtra header is required.
 
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
