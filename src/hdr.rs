@@ -1,6 +1,8 @@
-//! # CQC Interface Headers
+//! # CQC Interface
 //!
-//! This module documents and defines the CQC protocol headers.
+//! This module documents the [CQC Interface
+//! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
+//! and defines the necessary constants and header structures.
 
 /// # CQC Header
 ///
