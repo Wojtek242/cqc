@@ -10,8 +10,8 @@ use {Request, Response};
 ///
 /// # Possible errors
 ///
-/// Type - invalid message type.
-/// Version - invalid version (MUST be <= 0).
+/// - Type - invalid message type.
+/// - Version - invalid version (MUST be <= 0).
 pub enum Error {
     Type,
     Version,
@@ -28,8 +28,8 @@ pub enum CqcPacket {
 
 /// The result of a successful decode pass.
 ///
-/// `Complete` is used when enough data was provided for a complete packet.
-/// `Partial` is used when there was not enough data to decode an entire
+/// - `Complete` is used when enough data was provided for a complete packet.
+/// - `Partial` is used when there was not enough data to decode an entire
 /// packet, but no invalid data was found.
 pub enum Status {
     Complete(CqcPacket),
@@ -108,6 +108,11 @@ pub struct Decoder {
 }
 
 impl Decoder {
+
+    /// Create and initialise a `Decoder`.
+    pub fn new() -> Decoder {
+        Decoder {}
+    }
 
     /// Decode supplied data.
     ///

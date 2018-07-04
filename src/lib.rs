@@ -48,7 +48,7 @@ pub struct ReqCmd {
 
 pub struct Response {
     pub msg_hdr: CqcHdr,
-    pub notify: RspNotify,
+    pub notify: Option<RspNotify>,
 }
 
 pub enum RspNotify {

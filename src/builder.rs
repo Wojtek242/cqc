@@ -2,7 +2,8 @@
 //!
 //! This module provides utility functions to build valid CQC packets.  Its
 //! main purpose is to provide an API that can guarantee correct packet format.
-//! CQC packets built exclusively with this API are guaranteed to be correct.
+//! It is not necessary to use the `builder` module to build CQC packets, but
+//! packets built exclusively with this API are guaranteed to be correct.
 //!
 //! Currently only client-to-server packets are supported.
 
