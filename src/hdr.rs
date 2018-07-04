@@ -57,14 +57,14 @@ pub const CQC_VERSION: u8 = 0;
 ///  - Start executing command list repeatedly (msg_type=2).
 ///  - Get creation time of qubit (msg_type=8).
 
-pub const CQC_HDR_LENGTH: u32 = 8;
-
 pub struct CqcHdr {
     pub version: u8,
     pub msg_type: MsgType,
     pub app_id: u16,
     pub length: u32,
 }
+
+pub const CQC_HDR_LENGTH: u32 = 8;
 
 pub enum MsgType {
     Tp(CqcTp),
@@ -172,9 +172,8 @@ pub enum CqcErr {
 /// ## Notify
 ///
 /// If the notify option bit is set, each of these commands return a CQC
-/// message indicating that execution has completed (type 4). Some commands
-/// also return additional messages before the optional done-message, as
-/// described below:
+/// message indicating that execution has completed (msg_type=4). Some commands
+/// also return additional messages, as described below:
 ///
 /// - New qubit (instr=1): Returns an OK response followed by a notify header
 ///                        containing the qubit ID.
@@ -187,13 +186,13 @@ pub enum CqcErr {
 ///                    followed by a entanglement information header.
 ///
 
-pub const CMD_HDR_LENGTH: u32 = 4;
-
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
     pub options: u8,
 }
+
+pub const CMD_HDR_LENGTH: u32 = 4;
 
 #[repr(u8)]
 pub enum Cmd {
@@ -266,8 +265,6 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// align          1 byte     4 byte alignment.
 /// ```
 
-pub const XTRA_HDR_LENGTH: u32 = 16;
-
 pub struct XtraHdr {
     pub xtra_qubit_id: u16,
     pub remote_app_id: u16,
@@ -277,6 +274,8 @@ pub struct XtraHdr {
     pub steps: u8,
     pub align: u8,
 }
+
+pub const XTRA_HDR_LENGTH: u32 = 16;
 
 /// # CQC Notify Header
 ///
@@ -310,8 +309,6 @@ pub struct XtraHdr {
 /// align          1 byte     4 byte alignment.
 /// ```
 
-pub const NOTIFY_HDR_LENGTH: u32 = 20;
-
 pub struct NotifyHdr {
     pub qubit_id: u16,
     pub remote_ap_id: u16,
@@ -321,6 +318,8 @@ pub struct NotifyHdr {
     pub outcome: u8,
     pub align: u8,
 }
+
+pub const NOTIFY_HDR_LENGTH: u32 = 20;
 
 /// # CQC Entanglement Information Header
 ///
@@ -374,8 +373,6 @@ pub struct NotifyHdr {
 /// align      1 byte     4 byte alignment.
 /// ```
 
-pub const ENT_INFO_HDR_LENGTH: u32 = 40;
-
 pub struct EntInfoHdr {
     pub node_a: u32,
     pub port_a: u16,
@@ -390,6 +387,8 @@ pub struct EntInfoHdr {
     pub df: u8,
     pub align: u8,
 }
+
+pub const ENT_INFO_HDR_LENGTH: u32 = 40;
 
 #[cfg(test)]
 mod tests {
