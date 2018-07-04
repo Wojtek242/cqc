@@ -13,6 +13,7 @@
 //! not putting any runtime constraints on the user.
 
 pub mod hdr;
+pub mod builder;
 pub mod encode;
 pub mod decode;
 

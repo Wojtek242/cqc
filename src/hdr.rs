@@ -4,6 +4,8 @@
 //! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
 //! and defines the necessary constants and header structures.
 
+pub const CQC_VERSION: u8 = 0;
+
 /// # CQC Header
 ///
 /// Every CQC message begins with a CQC header.
@@ -54,6 +56,8 @@
 ///  - Execute a command list (msg_type=1).
 ///  - Start executing command list repeatedly (msg_type=2).
 ///  - Get creation time of qubit (msg_type=8).
+
+pub const CQC_HDR_LENGTH: u32 = 8;
 
 pub struct CqcHdr {
     pub version: u8,
@@ -183,6 +187,8 @@ pub enum CqcErr {
 ///                    followed by a entanglement information header.
 ///
 
+pub const CMD_HDR_LENGTH: u32 = 4;
+
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
@@ -260,6 +266,8 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// align          1 byte     4 byte alignment.
 /// ```
 
+pub const XTRA_HDR_LENGTH: u32 = 16;
+
 pub struct XtraHdr {
     pub xtra_qubit_id: u16,
     pub remote_app_id: u16,
@@ -301,6 +309,8 @@ pub struct XtraHdr {
 /// outcome        1 byte     Measurement outcome.
 /// align          1 byte     4 byte alignment.
 /// ```
+
+pub const NOTIFY_HDR_LENGTH: u32 = 20;
 
 pub struct NotifyHdr {
     pub qubit_id: u16,
@@ -364,6 +374,8 @@ pub struct NotifyHdr {
 /// align      1 byte     4 byte alignment.
 /// ```
 
+pub const ENT_INFO_HDR_LENGTH: u32 = 40;
+
 pub struct EntInfoHdr {
     pub node_a: u32,
     pub port_a: u16,
@@ -377,4 +389,35 @@ pub struct EntInfoHdr {
     pub goodness: u16,
     pub df: u8,
     pub align: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem;
+
+    #[test]
+    fn cqc_hdr_mem_size() {
+        assert_eq!(mem::size_of::<CqcHdr>() as u32, CQC_HDR_LENGTH);
+    }
+
+    #[test]
+    fn cmd_hdr_mem_size() {
+        assert_eq!(mem::size_of::<CmdHdr>() as u32, CMD_HDR_LENGTH);
+    }
+
+    #[test]
+    fn xtra_hdr_mem_size() {
+        assert_eq!(mem::size_of::<XtraHdr>() as u32, XTRA_HDR_LENGTH);
+    }
+
+    #[test]
+    fn notify_hdr_mem_size() {
+        assert_eq!(mem::size_of::<NotifyHdr>() as u32, NOTIFY_HDR_LENGTH);
+    }
+
+    #[test]
+    fn ent_info_hdr_mem_size() {
+        assert_eq!(mem::size_of::<EntInfoHdr>() as u32, ENT_INFO_HDR_LENGTH);
+    }
 }
