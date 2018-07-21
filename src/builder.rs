@@ -44,6 +44,14 @@ impl SetOpts for u8 {
     }
 }
 
+/// Struct containing all the necessary bits of information to identify a
+/// remote instance of the CQC backend.
+pub struct RemoteId {
+    remote_app_id: u16,
+    remote_node: u32,
+    remote_port: u16,
+}
+
 /// Build a liveness check request.
 pub fn hello(app_id: u16) -> Request {
     let cqc_hdr = CqcHdr {
@@ -63,34 +71,14 @@ pub fn hello(app_id: u16) -> Request {
 pub fn command(app_id: u16, req_cmd: ReqCmd) -> Request {
     build_request(app_id, req_cmd, MsgType::Tp(CqcTp::Command))
 }
-
 /// Build a factory request.
 pub fn factory(app_id: u16, req_cmd: ReqCmd) -> Request {
     build_request(app_id, req_cmd, MsgType::Tp(CqcTp::Factory))
 }
-
 /// Build a qubit creation time query.
-pub fn get_time(app_id: u16, req_cmd: ReqCmd) -> Request {
+pub fn get_time(app_id: u16, qubit_id: u16) -> Request {
+    let req_cmd = cmd_i(qubit_id, 0);
     build_request(app_id, req_cmd, MsgType::Tp(CqcTp::GetTime))
-}
-
-/// Build a CQC Request.
-fn build_request(app_id: u16, req_cmd: ReqCmd, msg_type: MsgType) -> Request {
-    let cqc_hdr = CqcHdr {
-        version: CQC_VERSION,
-        msg_type: msg_type,
-        app_id: app_id,
-        length: CMD_HDR_LENGTH + if req_cmd.xtra_hdr.is_some() {
-            XTRA_HDR_LENGTH
-        } else {
-            0
-        },
-    };
-
-    Request {
-        cqc_hdr,
-        req_cmd: Some(req_cmd),
-    }
 }
 
 /// Build an identity operation command request.
@@ -114,13 +102,14 @@ pub fn cmd_measure_inplace(qubit_id: u16, options: u8) -> ReqCmd {
 pub fn cmd_reset(qubit_id: u16, options: u8) -> ReqCmd {
     build_req_cmd(qubit_id, options, None, Cmd::Reset)
 }
-/// Build a send command request.  This command requires an Xtra Header to identify the remote node.
-pub fn cmd_send(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+/// Build a send command request.  This command has to identify the remote node to send to.
+pub fn cmd_send(qubit_id: u16, options: u8, remote_id: &RemoteId) -> ReqCmd {
+    let xtra_hdr = xtra_remote_node(remote_id);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::Send)
 }
-/// Build a receive command request.  This command requires an Xtra Header to identify the remote node.
-pub fn cmd_recv(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
-    build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::Recv)
+/// Build a receive command request.
+pub fn cmd_recv(qubit_id: u16, options: u8) -> ReqCmd {
+    build_req_cmd(qubit_id, options, None, Cmd::Recv)
 }
 /// Build an EPR creation command request.
 pub fn cmd_epr(qubit_id: u16, options: u8) -> ReqCmd {
@@ -147,16 +136,19 @@ pub fn cmd_y(qubit_id: u16, options: u8) -> ReqCmd {
 pub fn cmd_t(qubit_id: u16, options: u8) -> ReqCmd {
     build_req_cmd(qubit_id, options, None, Cmd::T)
 }
-/// Build an X rotation command request.  This command requires an Xtra Header to specify the angle of rotation.
-pub fn cmd_rot_x(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+/// Build an X rotation command request.  Rotation is specified in steps of pi/256 increments.
+pub fn cmd_rot_x(qubit_id: u16, options: u8, steps: u8) -> ReqCmd {
+    let xtra_hdr = xtra_rotation_angle(steps);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::RotX)
 }
-/// Build a Y rotation command request.  This command requires an Xtra Header to specify the angle of rotation.
-pub fn cmd_rot_y(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+/// Build a Y rotation command request.  Rotation is specified in steps of pi/256 increments.
+pub fn cmd_rot_y(qubit_id: u16, options: u8, steps: u8) -> ReqCmd {
+    let xtra_hdr = xtra_rotation_angle(steps);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::RotY)
 }
-/// Build a Z rotation command request.  This command requires an Xtra Header to specify the angle of rotation.
-pub fn cmd_rot_z(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+/// Build a Z rotation command request.  Rotation is specified in steps of pi/256 increments.
+pub fn cmd_rot_z(qubit_id: u16, options: u8, steps: u8) -> ReqCmd {
+    let xtra_hdr = xtra_rotation_angle(steps);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::RotZ)
 }
 /// Build a Hadamard Gate command request.
@@ -169,12 +161,33 @@ pub fn cmd_k(qubit_id: u16, options: u8) -> ReqCmd {
 }
 
 /// Build a CNOT command request.  This command requires an Xtra Header to identify the target qubit.
-pub fn cmd_cnot(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+pub fn cmd_cnot(qubit_id: u16, options: u8, target_qubit_id: u16) -> ReqCmd {
+    let xtra_hdr = xtra_target_qubit(target_qubit_id);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::Cnot)
 }
-/// Build a CPHASE command request.  This command requires an Xtra Header to identify the target qubit.
-pub fn cmd_cphase(qubit_id: u16, options: u8, xtra_hdr: XtraHdr) -> ReqCmd {
+/// Build a CPHASE command request.
+pub fn cmd_cphase(qubit_id: u16, options: u8, target_qubit_id: u16) -> ReqCmd {
+    let xtra_hdr = xtra_target_qubit(target_qubit_id);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::Cphase)
+}
+
+/// Build a CQC Request.
+fn build_request(app_id: u16, req_cmd: ReqCmd, msg_type: MsgType) -> Request {
+    let cqc_hdr = CqcHdr {
+        version: CQC_VERSION,
+        msg_type: msg_type,
+        app_id: app_id,
+        length: CMD_HDR_LENGTH + if req_cmd.xtra_hdr.is_some() {
+            XTRA_HDR_LENGTH
+        } else {
+            0
+        },
+    };
+
+    Request {
+        cqc_hdr,
+        req_cmd: Some(req_cmd),
+    }
 }
 
 /// Build a Command Header Request.
@@ -188,22 +201,41 @@ fn build_req_cmd(qubit_id: u16, options: u8, xtra_hdr: Option<XtraHdr>, instr: C
     ReqCmd { cmd_hdr, xtra_hdr }
 }
 
-/// Build an Xtra Header.
-pub fn build_xtra_hdr(
-    xtra_qubit_id: u16,
-    remote_app_id: u16,
-    remote_node: u32,
-    cmd_length: u32,
-    remote_port: u16,
-    steps: u8,
-) -> XtraHdr {
+/// Build an Xtra Header that specifies a remote node.
+fn xtra_remote_node(remote_id: &RemoteId) -> XtraHdr {
+    XtraHdr {
+        xtra_qubit_id: 0,
+        remote_app_id: remote_id.remote_app_id,
+        remote_node: remote_id.remote_node,
+        cmd_length: 0,
+        remote_port: remote_id.remote_port,
+        steps: 0,
+        align: 0,
+    }
+}
+
+/// Build an Xtra Header that specifies a rotation angle in pi/256 increments.
+fn xtra_rotation_angle(steps: u8) -> XtraHdr {
+    XtraHdr {
+        xtra_qubit_id: 0,
+        remote_app_id: 0,
+        remote_node: 0,
+        cmd_length: 0,
+        remote_port: 0,
+        steps,
+        align: 0,
+    }
+}
+
+/// Build an Xtra Header that specifies a target qubit.
+fn xtra_target_qubit(xtra_qubit_id: u16) -> XtraHdr {
     XtraHdr {
         xtra_qubit_id,
-        remote_app_id,
-        remote_node,
-        cmd_length,
-        remote_port,
-        steps,
+        remote_app_id: 0,
+        remote_node: 0,
+        cmd_length: 0,
+        remote_port: 0,
+        steps: 0,
         align: 0,
     }
 }

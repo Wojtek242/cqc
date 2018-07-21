@@ -152,7 +152,6 @@ pub enum CqcErr {
 /// instructions:
 ///
 ///  - Send qubit to another node (instr=5).
-///  - Ask to receive qubit (instr=6).
 ///  - Rotations (instr=14-16).
 ///  - Two qubit gates (instr=20,21).
 ///
@@ -233,7 +232,6 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// following instructions:
 ///
 ///  - Send qubit to another node (instr=5).
-///  - Ask to receive qubit (instr=6).
 ///  - Rotations (instr=14-16).
 ///  - Two qubit gates (instr=20,21).
 ///
