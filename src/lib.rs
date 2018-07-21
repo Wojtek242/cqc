@@ -26,7 +26,7 @@ use hdr::*;
 
 pub struct Request {
     pub cqc_hdr: CqcHdr,
-    pub command: Option<ReqCmd>,
+    pub req_cmd: Option<ReqCmd>,
 }
 
 /// # Command Request
