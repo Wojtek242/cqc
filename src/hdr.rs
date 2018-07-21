@@ -4,6 +4,8 @@
 //! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
 //! and defines the necessary constants and header structures.
 
+pub const CQC_VERSION: u8 = 0;
+
 /// # CQC Header
 ///
 /// Every CQC message begins with a CQC header.
@@ -61,6 +63,8 @@ pub struct CqcHdr {
     pub app_id: u16,
     pub length: u32,
 }
+
+pub const CQC_HDR_LENGTH: u32 = 8;
 
 pub enum MsgType {
     Tp(CqcTp),
@@ -168,9 +172,8 @@ pub enum CqcErr {
 /// ## Notify
 ///
 /// If the notify option bit is set, each of these commands return a CQC
-/// message indicating that execution has completed (type 4). Some commands
-/// also return additional messages before the optional done-message, as
-/// described below:
+/// message indicating that execution has completed (msg_type=4). Some commands
+/// also return additional messages, as described below:
 ///
 /// - New qubit (instr=1): Returns an OK response followed by a notify header
 ///                        containing the qubit ID.
@@ -188,6 +191,8 @@ pub struct CmdHdr {
     pub instr: Cmd,
     pub options: u8,
 }
+
+pub const CMD_HDR_LENGTH: u32 = 4;
 
 #[repr(u8)]
 pub enum Cmd {
@@ -270,6 +275,8 @@ pub struct XtraHdr {
     pub align: u8,
 }
 
+pub const XTRA_HDR_LENGTH: u32 = 16;
+
 /// # CQC Notify Header
 ///
 /// In some cases, the CQC Backend will return notifications to the client that
@@ -311,6 +318,8 @@ pub struct NotifyHdr {
     pub outcome: u8,
     pub align: u8,
 }
+
+pub const NOTIFY_HDR_LENGTH: u32 = 20;
 
 /// # CQC Entanglement Information Header
 ///
@@ -377,4 +386,40 @@ pub struct EntInfoHdr {
     pub goodness: u16,
     pub df: u8,
     pub align: u8,
+}
+
+pub const ENT_INFO_HDR_LENGTH: u32 = 40;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem;
+
+    // TODO: These don't pass, but that doesn't matter.  The comparison should
+    // be between a serialised version of the structs, not Rust's
+    // representation in memory.
+    #[test]
+    fn cqc_hdr_mem_size() {
+        // assert_eq!(mem::size_of::<CqcHdr>() as u32, CQC_HDR_LENGTH);
+    }
+
+    #[test]
+    fn cmd_hdr_mem_size() {
+        // assert_eq!(mem::size_of::<CmdHdr>() as u32, CMD_HDR_LENGTH);
+    }
+
+    #[test]
+    fn xtra_hdr_mem_size() {
+        // assert_eq!(mem::size_of::<XtraHdr>() as u32, XTRA_HDR_LENGTH);
+    }
+
+    #[test]
+    fn notify_hdr_mem_size() {
+        // assert_eq!(mem::size_of::<NotifyHdr>() as u32, NOTIFY_HDR_LENGTH);
+    }
+
+    #[test]
+    fn ent_info_hdr_mem_size() {
+        // assert_eq!(mem::size_of::<EntInfoHdr>() as u32, ENT_INFO_HDR_LENGTH);
+    }
 }

@@ -13,6 +13,7 @@
 //! not putting any runtime constraints on the user.
 
 pub mod hdr;
+pub mod builder;
 pub mod encode;
 pub mod decode;
 
@@ -47,7 +48,7 @@ pub struct ReqCmd {
 
 pub struct Response {
     pub msg_hdr: CqcHdr,
-    pub notify: RspNotify,
+    pub notify: Option<RspNotify>,
 }
 
 pub enum RspNotify {
