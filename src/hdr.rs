@@ -4,6 +4,14 @@
 //! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
 //! and defines the necessary constants and header structures.
 
+extern crate serde;
+
+use self::serde::de;
+use std::fmt;
+
+use self::serde::de::Visitor;
+use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 pub const CQC_VERSION: u8 = 0;
 
 /// # CQC Header
@@ -57,6 +65,7 @@ pub const CQC_VERSION: u8 = 0;
 ///  - Start executing command list repeatedly (msg_type=2).
 ///  - Get creation time of qubit (msg_type=8).
 
+#[derive(Serialize, Deserialize)]
 pub struct CqcHdr {
     pub version: u8,
     pub msg_type: MsgType,
@@ -66,12 +75,14 @@ pub struct CqcHdr {
 
 pub const CQC_HDR_LENGTH: u32 = 8;
 
+#[derive(Copy, Clone)]
 pub enum MsgType {
     Tp(CqcTp),
     Err(CqcErr),
 }
 
 #[repr(u8)]
+#[derive(Copy, Clone)]
 pub enum CqcTp {
     Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
@@ -87,11 +98,72 @@ pub enum CqcTp {
 }
 
 #[repr(u8)]
+#[derive(Copy, Clone)]
 pub enum CqcErr {
     General = 20, // General purpose error (no details.
     Noqubit = 21, // No more qubits available.
     Unsupp = 22,  // Command sequence not supported.
     Timeout = 23, // Timeout.
+}
+
+impl Serialize for MsgType {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            MsgType::Tp(tp) => serializer.serialize_u8(*tp as u8),
+            MsgType::Err(err) => serializer.serialize_u8(*err as u8),
+        }
+    }
+}
+
+struct MsgTypeVisitor;
+
+impl<'de> Visitor<'de> for MsgTypeVisitor {
+    type Value = MsgType;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC message type")
+    }
+
+    fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
+    where
+        E: de::Error,
+    {
+        let msg_type = match value {
+            0 => MsgType::Tp(CqcTp::Hello),
+            1 => MsgType::Tp(CqcTp::Command),
+            2 => MsgType::Tp(CqcTp::Factory),
+            3 => MsgType::Tp(CqcTp::Expire),
+            4 => MsgType::Tp(CqcTp::Done),
+            5 => MsgType::Tp(CqcTp::Recv),
+            6 => MsgType::Tp(CqcTp::EprOk),
+            7 => MsgType::Tp(CqcTp::Measout),
+            8 => MsgType::Tp(CqcTp::GetTime),
+            9 => MsgType::Tp(CqcTp::InfTime),
+            10 => MsgType::Tp(CqcTp::NewOk),
+
+            20 => MsgType::Err(CqcErr::General),
+            21 => MsgType::Err(CqcErr::Noqubit),
+            22 => MsgType::Err(CqcErr::Unsupp),
+            23 => MsgType::Err(CqcErr::Timeout),
+
+            _ => return Err(E::custom(format!("Invalid CQC message type: {}", value))),
+        };
+
+        Ok(msg_type)
+    }
+}
+
+impl<'de> Deserialize<'de> for MsgType {
+    fn deserialize<D>(deserializer: D) -> Result<MsgType, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(MsgTypeVisitor)
+    }
 }
 
 /// # CQC Command Header
@@ -185,6 +257,7 @@ pub enum CqcErr {
 ///                    followed by a entanglement information header.
 ///
 
+#[derive(Serialize, Deserialize)]
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
@@ -194,6 +267,7 @@ pub struct CmdHdr {
 pub const CMD_HDR_LENGTH: u32 = 4;
 
 #[repr(u8)]
+#[derive(Copy, Clone)]
 pub enum Cmd {
     I = 0,              // Identity (do nothing, wait one step).
     New = 1,            // Ask for a new qubit.
@@ -217,6 +291,74 @@ pub enum Cmd {
 
     Cnot = 20,   // CNOT Gate with this as control.
     Cphase = 21, // CPHASE Gate with this as control.
+}
+
+impl Serialize for Cmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+struct CmdVisitor;
+
+impl<'de> Visitor<'de> for CmdVisitor {
+    type Value = Cmd;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC isntruction type")
+    }
+
+    fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
+    where
+        E: de::Error,
+    {
+        let instr = match value {
+            0 => Cmd::I,
+            1 => Cmd::New,
+            2 => Cmd::Measure,
+            3 => Cmd::MeasureInplace,
+            4 => Cmd::Reset,
+            5 => Cmd::Send,
+            6 => Cmd::Recv,
+            7 => Cmd::Epr,
+            8 => Cmd::EprRecv,
+
+            10 => Cmd::X,
+            11 => Cmd::Z,
+            12 => Cmd::Y,
+            13 => Cmd::T,
+            14 => Cmd::RotX,
+            15 => Cmd::RotY,
+            16 => Cmd::RotZ,
+            17 => Cmd::H,
+            18 => Cmd::K,
+
+            20 => Cmd::Cnot,
+            21 => Cmd::Cphase,
+
+            _ => {
+                return Err(E::custom(format!(
+                    "Invalid CQC instruction type: {}",
+                    value
+                )))
+            }
+        };
+
+        Ok(instr)
+    }
+}
+
+impl<'de> Deserialize<'de> for Cmd {
+    fn deserialize<D>(deserializer: D) -> Result<Cmd, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(CmdVisitor)
+    }
 }
 
 pub const CMD_OPT_NOTIFY: u8 = 0x01; // Send a notification when command completes.
@@ -263,6 +405,7 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// align          1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize)]
 pub struct XtraHdr {
     pub xtra_qubit_id: u16,
     pub remote_app_id: u16,
@@ -307,6 +450,7 @@ pub const XTRA_HDR_LENGTH: u32 = 16;
 /// align          1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize)]
 pub struct NotifyHdr {
     pub qubit_id: u16,
     pub remote_ap_id: u16,
@@ -371,6 +515,7 @@ pub const NOTIFY_HDR_LENGTH: u32 = 20;
 /// align      1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize)]
 pub struct EntInfoHdr {
     pub node_a: u32,
     pub port_a: u16,
@@ -390,34 +535,82 @@ pub const ENT_INFO_HDR_LENGTH: u32 = 40;
 
 #[cfg(test)]
 mod tests {
+    extern crate bincode;
+
+    use self::bincode::serialize;
     use super::*;
-    use std::mem;
 
-    // TODO: These don't pass, but that doesn't matter.  The comparison should
-    // be between a serialised version of the structs, not Rust's
-    // representation in memory.
     #[test]
-    fn cqc_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<CqcHdr>() as u32, CQC_HDR_LENGTH);
+    fn cqc_hdr_ser_size() {
+        let cqc_hdr = CqcHdr {
+            version: CQC_VERSION,
+            msg_type: MsgType::Tp(CqcTp::Hello),
+            app_id: 0,
+            length: 0,
+        };
+        assert_eq!(serialize(&cqc_hdr).unwrap().len() as u32, CQC_HDR_LENGTH);
     }
 
     #[test]
-    fn cmd_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<CmdHdr>() as u32, CMD_HDR_LENGTH);
+    fn cmd_hdr_ser_size() {
+        let cmd_hdr = CmdHdr {
+            qubit_id: 0,
+            instr: Cmd::I,
+            options: 0,
+        };
+        assert_eq!(serialize(&cmd_hdr).unwrap().len() as u32, CMD_HDR_LENGTH);
     }
 
     #[test]
-    fn xtra_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<XtraHdr>() as u32, XTRA_HDR_LENGTH);
+    fn xtra_hdr_ser_size() {
+        let xtra_hdr = XtraHdr {
+            xtra_qubit_id: 0,
+            remote_app_id: 0,
+            remote_node: 0,
+            cmd_length: 0,
+            remote_port: 0,
+            steps: 0,
+            align: 0,
+        };
+        assert_eq!(serialize(&xtra_hdr).unwrap().len() as u32, XTRA_HDR_LENGTH);
     }
 
     #[test]
-    fn notify_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<NotifyHdr>() as u32, NOTIFY_HDR_LENGTH);
+    fn notify_hdr_ser_size() {
+        let notify_hdr = NotifyHdr {
+            qubit_id: 0,
+            remote_ap_id: 0,
+            remote_node: 0,
+            timestamp: 0,
+            remote_port: 0,
+            outcome: 0,
+            align: 0,
+        };
+        assert_eq!(
+            serialize(&notify_hdr).unwrap().len() as u32,
+            NOTIFY_HDR_LENGTH
+        );
     }
 
     #[test]
-    fn ent_info_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<EntInfoHdr>() as u32, ENT_INFO_HDR_LENGTH);
+    fn ent_info_hdr_ser_size() {
+        let ent_info_hdr = EntInfoHdr {
+            node_a: 0,
+            port_a: 0,
+            app_id_a: 0,
+            node_b: 0,
+            port_b: 0,
+            app_id_b: 0,
+            id_ab: 0,
+            timestamp: 0,
+            tog: 0,
+            goodness: 0,
+            df: 0,
+            align: 0,
+        };
+        assert_eq!(
+            serialize(&ent_info_hdr).unwrap().len() as u32,
+            ENT_INFO_HDR_LENGTH
+        );
     }
 }

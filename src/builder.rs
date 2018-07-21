@@ -46,6 +46,7 @@ impl SetOpts for u8 {
 
 /// Struct containing all the necessary bits of information to identify a
 /// remote instance of the CQC backend.
+#[derive(Copy, Clone)]
 pub struct RemoteId {
     remote_app_id: u16,
     remote_node: u32,
@@ -103,7 +104,7 @@ pub fn cmd_reset(qubit_id: u16, options: u8) -> ReqCmd {
     build_req_cmd(qubit_id, options, None, Cmd::Reset)
 }
 /// Build a send command request.  This command has to identify the remote node to send to.
-pub fn cmd_send(qubit_id: u16, options: u8, remote_id: &RemoteId) -> ReqCmd {
+pub fn cmd_send(qubit_id: u16, options: u8, remote_id: RemoteId) -> ReqCmd {
     let xtra_hdr = xtra_remote_node(remote_id);
     build_req_cmd(qubit_id, options, Some(xtra_hdr), Cmd::Send)
 }
@@ -202,7 +203,7 @@ fn build_req_cmd(qubit_id: u16, options: u8, xtra_hdr: Option<XtraHdr>, instr: C
 }
 
 /// Build an Xtra Header that specifies a remote node.
-fn xtra_remote_node(remote_id: &RemoteId) -> XtraHdr {
+fn xtra_remote_node(remote_id: RemoteId) -> XtraHdr {
     XtraHdr {
         xtra_qubit_id: 0,
         remote_app_id: remote_id.remote_app_id,
