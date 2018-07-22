@@ -14,10 +14,12 @@ use {Request, Response, RspNotify};
 ///
 /// - Version - invalid version (MUST be <= 0).
 /// - Deserialize - An error occurred while deserializing.
+/// - Invalid - The packet is invalid.
 #[derive(Debug)]
 pub enum Error {
-    Version,
-    Deserialize,
+    Version(u8),
+    Deserialize(Box<bincode::ErrorKind>),
+    Invalid(String),
 }
 
 /// A result of any decoding action.  The `Ok` result is a tuple of bytes read
@@ -151,12 +153,12 @@ impl Decoder {
         assert!(buffer.len() >= end);
         let cqc_hdr: CqcHdr = match self.config.deserialize_from(&buffer[..end]) {
             Ok(result) => result,
-            Err(_) => return Err(Error::Deserialize),
+            Err(e) => return Err(Error::Deserialize(e)),
         };
         pos = end;
 
         if cqc_hdr.version != CQC_VERSION {
-            return Err(Error::Version);
+            return Err(Error::Version(cqc_hdr.version));
         }
 
         if cqc_hdr.length == 0 {
@@ -171,37 +173,59 @@ impl Decoder {
 
         match cqc_hdr.msg_type {
             MsgType::Tp(CqcTp::Recv) | MsgType::Tp(CqcTp::Measout) | MsgType::Tp(CqcTp::NewOk) => {
+                if cqc_hdr.length < NOTIFY_HDR_LENGTH {
+                    return Err(Error::Invalid(format!(
+                        "Need at least {} bytes for Notify Header, packet has {}",
+                        NOTIFY_HDR_LENGTH, cqc_hdr.length
+                    )));
+                }
+
                 end += NOTIFY_HDR_LENGTH as usize;
-                assert!(buffer.len() >= end);
-                assert!((CQC_HDR_LENGTH + cqc_hdr.length) as usize >= end);
-                match self.config.deserialize_from(&buffer[pos..end]) {
-                    Ok(result) => return Ok((
-                        (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
-                        Status::Complete(CqcPacket::Response(Response {
-                            cqc_hdr,
-                            notify: Some(RspNotify::Notify(result)),
-                        })),
-                    )),
-                    Err(_) => return Err(Error::Deserialize),
-                };
+                if buffer.len() >= end {
+                    match self.config.deserialize_from(&buffer[pos..end]) {
+                        Ok(result) => {
+                            return Ok((
+                                (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
+                                Status::Complete(CqcPacket::Response(Response {
+                                    cqc_hdr,
+                                    notify: Some(RspNotify::Notify(result)),
+                                })),
+                            ))
+                        }
+                        Err(e) => return Err(Error::Deserialize(e)),
+                    };
+                }
             }
             MsgType::Tp(CqcTp::EprOk) => {
+                if cqc_hdr.length < ENT_INFO_HDR_LENGTH {
+                    return Err(Error::Invalid(format!(
+                        "Need at least {} bytes for Entanglement Info, packet has {}",
+                        ENT_INFO_HDR_LENGTH, cqc_hdr.length
+                    )));
+                }
+
                 end += ENT_INFO_HDR_LENGTH as usize;
-                assert!(buffer.len() >= end);
-                assert!((CQC_HDR_LENGTH + cqc_hdr.length) as usize >= end);
-                match self.config.deserialize_from(&buffer[pos..end]) {
-                    Ok(result) => return Ok((
-                        (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
-                        Status::Complete(CqcPacket::Response(Response {
-                            cqc_hdr,
-                            notify: Some(RspNotify::EntInfo(result)),
-                        })),
-                    )),
-                    Err(_) => return Err(Error::Deserialize),
-                };
+                if buffer.len() >= end {
+                    match self.config.deserialize_from(&buffer[pos..end]) {
+                        Ok(result) => {
+                            return Ok((
+                                (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
+                                Status::Complete(CqcPacket::Response(Response {
+                                    cqc_hdr,
+                                    notify: Some(RspNotify::EntInfo(result)),
+                                })),
+                            ))
+                        }
+                        Err(e) => return Err(Error::Deserialize(e)),
+                    };
+                }
             }
-            _ => panic!("Unexpected message type received: {:?}", cqc_hdr.msg_type),
+            _ => {}
         }
+
+        // If we reached here, there is nothing wrong with the data, but the
+        // packet is incomplete.
+        Ok((0, Status::Partial))
     }
 }
 #[cfg(test)]
@@ -601,14 +625,13 @@ mod tests {
     }
 
     // Decode a response packet that only has a non-zero length indicating
-    // follow-up headers, but the message type does not match any that are
-    // expected to have follow-up headers.  This should return an error (and
-    // thus panic on an unwrap).
+    // follow-up headers, but it is too short to hold the expected header.
+    // This should return an Error and thus panic on unwrap.
     #[test]
-    #[should_panic(expected = "Unexpected message type received: Tp(Done)")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Invalid")]
     fn invalid_type_decode() {
-        let cqc_type = CqcTp::Done;
-        let length: u32 = NOTIFY_HDR_LENGTH;
+        let cqc_type = CqcTp::NewOk;
+        let length: u32 = NOTIFY_HDR_LENGTH - 1;
 
         let packet: Vec<u8> = vec![
             // CQC header.
@@ -641,6 +664,28 @@ mod tests {
             0x00,
             0x00,
             0x00,
+        ];
+
+        let decoder = Decoder::new();
+        decoder.decode(&packet[..]).unwrap();
+    }
+
+    // Decode a response packet that only has an invalid message type.  This
+    // should return an error (and thus panic on an unwrap).
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Deserialize(Custom")]
+    fn invalid_msg_type_decode() {
+        let length: u32 = 0;
+
+        let packet: Vec<u8> = vec![
+            CQC_VERSION + 1,
+            0xFF,
+            get_byte_16!(APP_ID, 1),
+            get_byte_16!(APP_ID, 0),
+            get_byte_32!(length, 3),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 0),
         ];
 
         let decoder = Decoder::new();
