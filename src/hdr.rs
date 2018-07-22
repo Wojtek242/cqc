@@ -65,7 +65,7 @@ pub const CQC_VERSION: u8 = 0;
 ///  - Start executing command list repeatedly (msg_type=2).
 ///  - Get creation time of qubit (msg_type=8).
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CqcHdr {
     pub version: u8,
     pub msg_type: MsgType,
@@ -75,14 +75,14 @@ pub struct CqcHdr {
 
 pub const CQC_HDR_LENGTH: u32 = 8;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
     Tp(CqcTp),
     Err(CqcErr),
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CqcTp {
     Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
@@ -98,7 +98,7 @@ pub enum CqcTp {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CqcErr {
     General = 20, // General purpose error (no details.
     Noqubit = 21, // No more qubits available.
@@ -246,8 +246,8 @@ impl<'de> Deserialize<'de> for MsgType {
 /// message indicating that execution has completed (msg_type=4). Some commands
 /// also return additional messages, as described below:
 ///
-/// - New qubit (instr=1): Returns an OK response followed by a notify header
-///                        containing the qubit ID.
+/// - New qubit (instr=1): Returns an OK (msg_type=10) response followed by a
+///                        notify header containing the qubit ID.
 /// - Measurement (instr=2,3): Returns a measurement outcome message
 ///                            (msg_type=7) followed by a notify header
 ///                            containing the measurement outcome.
@@ -257,7 +257,7 @@ impl<'de> Deserialize<'de> for MsgType {
 ///                    followed by a entanglement information header.
 ///
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
@@ -267,7 +267,7 @@ pub struct CmdHdr {
 pub const CMD_HDR_LENGTH: u32 = 4;
 
 #[repr(u8)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cmd {
     I = 0,              // Identity (do nothing, wait one step).
     New = 1,            // Ask for a new qubit.
@@ -405,7 +405,7 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// align          1 byte     4 byte alignment.
 /// ```
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct XtraHdr {
     pub xtra_qubit_id: u16,
     pub remote_app_id: u16,
@@ -450,7 +450,7 @@ pub const XTRA_HDR_LENGTH: u32 = 16;
 /// align          1 byte     4 byte alignment.
 /// ```
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NotifyHdr {
     pub qubit_id: u16,
     pub remote_ap_id: u16,
@@ -515,7 +515,7 @@ pub const NOTIFY_HDR_LENGTH: u32 = 20;
 /// align      1 byte     4 byte alignment.
 /// ```
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct EntInfoHdr {
     pub node_a: u32,
     pub port_a: u16,

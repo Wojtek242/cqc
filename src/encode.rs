@@ -13,14 +13,14 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    /// Create an encoder with the default endianness setting (little endian).
+    /// Create an `Encoder` with the default endianness setting (little endian).
     pub fn new() -> Encoder {
         Encoder {
             config: bincode::config(),
         }
     }
 
-    /// Create a big endian encoder.
+    /// Create a big endian `Encoder`.
     pub fn big_endian() -> Encoder {
         let mut config = bincode::config();
         config.big_endian();
@@ -28,7 +28,7 @@ impl Encoder {
         Encoder { config }
     }
 
-    /// Create a little endian encoder.
+    /// Create a little endian `Encoder`.
     pub fn little_endian() -> Encoder {
         let mut config = bincode::config();
         config.little_endian();
@@ -394,7 +394,7 @@ mod tests {
 
     // Test an encoding when the provided buffer is too small (should panic).
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
     fn cqc_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -422,7 +422,7 @@ mod tests {
     // Test an encoding when the provided buffer is too small, but sufficient
     // for the CQC header (should panic).
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
     fn cmd_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -462,7 +462,7 @@ mod tests {
     // Test an encoding when the provided buffer is too small, but sufficient
     // for the CQC and CMD headers (should panic).
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
     fn xtra_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
