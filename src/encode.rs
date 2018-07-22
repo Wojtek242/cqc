@@ -36,19 +36,15 @@ impl Encoder {
         Encoder { config }
     }
 
-    /// Encode a CQC request packet into buffer of bytes. The return value is a
-    /// reference to the buffer provided as input.
+    /// Encode a CQC request packet into buffer of bytes.  The return value is
+    /// a the number of bytes written.
     ///
     /// If the provided buffer is not large enough to encode the request
     /// `encode_request` will panic.
     ///
     /// Currently, this only supports encoding of complete packets.  That is,
     /// partial packets cannot be encoded.
-    pub fn encode_request<'buf>(
-        &self,
-        request: &Request,
-        buffer: &'buf mut [u8],
-    ) -> &'buf mut [u8] {
+    pub fn encode_request<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
         let mut pos: usize;
         let mut end: usize;
 
@@ -60,7 +56,7 @@ impl Encoder {
         pos = end;
 
         if request.req_cmd.is_none() {
-            return buffer;
+            return end;
         }
 
         let req_cmd: &ReqCmd = request.req_cmd.as_ref().unwrap();
@@ -73,7 +69,7 @@ impl Encoder {
         pos = end;
 
         if req_cmd.xtra_hdr.is_none() {
-            return buffer;
+            return end;
         }
 
         let xtra_hdr: &XtraHdr = &req_cmd.xtra_hdr.as_ref().unwrap();
@@ -84,7 +80,7 @@ impl Encoder {
             .serialize_into(&mut buffer[pos..end], xtra_hdr)
             .unwrap();
 
-        buffer
+        end
     }
 }
 
@@ -133,7 +129,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + length) as usize];
+        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let mut buffer = vec![0xFF; buf_len];
 
         // Little-endian
         let expected: Vec<u8> = vec![
@@ -148,16 +145,12 @@ mod tests {
         ];
 
         let encoder = Encoder::little_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         let encoder = Encoder::new();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -172,10 +165,8 @@ mod tests {
         ];
 
         let encoder = Encoder::big_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
     }
 
     // Encode a packet that has a CMD header, but no XTRA header.
@@ -215,7 +206,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + length) as usize];
+        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let mut buffer = vec![0xFF; buf_len];
 
         // Little-endian
         let expected: Vec<u8> = vec![
@@ -236,16 +228,12 @@ mod tests {
         ];
 
         let encoder = Encoder::little_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         let encoder = Encoder::new();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -266,10 +254,8 @@ mod tests {
         ];
 
         let encoder = Encoder::big_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
     }
 
     // Encode a packet with a CMD and XTRA headers.
@@ -320,7 +306,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + length) as usize];
+        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let mut buffer = vec![0xFF; buf_len];
 
         // Little-endian
         let expected: Vec<u8> = vec![
@@ -354,20 +341,16 @@ mod tests {
             get_byte_16!(REMOTE_PORT, 1),
             get_byte_16!(REMOTE_PORT, 0),
             0x00,
-            0x00
+            0x00,
         ];
 
         let encoder = Encoder::little_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         let encoder = Encoder::new();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -401,14 +384,12 @@ mod tests {
             get_byte_16!(REMOTE_PORT, 0),
             get_byte_16!(REMOTE_PORT, 1),
             0x00,
-            0x00
+            0x00,
         ];
 
         let encoder = Encoder::big_endian();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
     }
 
     // Test an encoding when the provided buffer is too small (should panic).
@@ -521,7 +502,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + CMD_HDR_LENGTH + XTRA_HDR_LENGTH - 1) as usize];
+        let mut buffer =
+            vec![0xFF; (CQC_HDR_LENGTH + CMD_HDR_LENGTH + XTRA_HDR_LENGTH - 1) as usize];
 
         let encoder = Encoder::new();
 
@@ -548,7 +530,9 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + 4) as usize];
+        let write_len: usize = CQC_HDR_LENGTH as usize;
+        let buf_len: usize = write_len + 4;
+        let mut buffer = vec![0xFF; buf_len as usize];
 
         // Little-endian
         let expected: Vec<u8> = vec![
@@ -568,9 +552,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(
-            encoder.encode_request(&request, &mut buffer[..]),
-            &expected[..]
-        );
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), write_len);
+        assert_eq!(buffer, expected);
     }
 }
