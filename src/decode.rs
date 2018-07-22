@@ -6,6 +6,8 @@ extern crate bincode;
 
 use hdr::*;
 use std::result;
+use std::fmt;
+use std::error;
 use {Request, Response, RspNotify};
 
 /// An error in decoding.
@@ -22,14 +24,79 @@ pub enum Error {
     Invalid(String),
 }
 
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match self {
+            &Error::Version(_) => "Unsupported CQC version",
+            &Error::Deserialize(_) => "Deserialization from binary format failed",
+            &Error::Invalid(_) => "The packet is invalid",
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        match self {
+            &Error::Version(ref ver) => write!(f, "Unsupported CQC version: {}", ver),
+            &Error::Deserialize(ref ek) => ek.fmt(f),
+            &Error::Invalid(ref s) => write!(f, "{}", s),
+        }
+    }
+}
+
 /// A result of any decoding action.  The `Ok` result is a tuple of bytes read
 /// and a decoding `Status`.
 pub type Result = result::Result<(usize, Status), Error>;
 
 #[derive(Debug, PartialEq)]
 pub enum CqcPacket {
+    CqcHdr(CqcHdr),
     Request(Request),
     Response(Response),
+}
+
+impl CqcPacket {
+    pub fn is_cqc_hdr(&self) -> bool {
+        match self {
+            &CqcPacket::CqcHdr(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_cqc_hdr(self) -> Option<CqcHdr> {
+        match self {
+            CqcPacket::CqcHdr(cqc_hdr) => Some(cqc_hdr),
+            _ => None,
+        }
+    }
+
+    pub fn is_request(&self) -> bool {
+        match self {
+            &CqcPacket::Request(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_request(self) -> Option<Request> {
+        match self {
+            CqcPacket::Request(request) => Some(request),
+            _ => None,
+        }
+    }
+
+    pub fn is_response(&self) -> bool {
+        match self {
+            &CqcPacket::Response(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_response(self) -> Option<Response> {
+        match self {
+            CqcPacket::Response(response) => Some(response),
+            _ => None,
+        }
+    }
 }
 
 /// The result of a successful decode pass.
@@ -48,8 +115,8 @@ impl Status {
     #[inline]
     pub fn is_complete(&self) -> bool {
         match self {
-            Status::Complete(..) => true,
-            Status::Partial => false,
+            &Status::Complete(..) => true,
+            &Status::Partial => false,
         }
     }
 
@@ -57,8 +124,8 @@ impl Status {
     #[inline]
     pub fn is_partial(&self) -> bool {
         match self {
-            Status::Complete(..) => false,
-            Status::Partial => true,
+            &Status::Complete(..) => false,
+            &Status::Partial => true,
         }
     }
 
@@ -142,28 +209,18 @@ impl Decoder {
     /// Returns a `Status` object if no error during parsing occurred.  If the
     /// data provided is incomplete and a CQC packet cannot be constructed a
     /// `Status::Partial` is returned.
-    ///
-    /// Note that currently only the decoding of complete response packets is
-    /// supported.  Decode will panic otherwise.
     pub fn decode(&self, buffer: &[u8]) -> Result {
-        let pos: usize;
-        let mut end: usize;
+        let (bytes, status) = self.decode_cqc_hdr(buffer)?;
 
-        end = CQC_HDR_LENGTH as usize;
-        assert!(buffer.len() >= end);
-        let cqc_hdr: CqcHdr = match self.config.deserialize_from(&buffer[..end]) {
-            Ok(result) => result,
-            Err(e) => return Err(Error::Deserialize(e)),
+        let cqc_hdr = match status {
+            Status::Complete(CqcPacket::CqcHdr(pkt)) => pkt,
+            Status::Partial => return Ok((0, Status::Partial)),
+            _ => panic!(),
         };
-        pos = end;
-
-        if cqc_hdr.version != CQC_VERSION {
-            return Err(Error::Version(cqc_hdr.version));
-        }
 
         if cqc_hdr.length == 0 {
             return Ok((
-                CQC_HDR_LENGTH as usize,
+                bytes,
                 Status::Complete(CqcPacket::Response(Response {
                     cqc_hdr,
                     notify: None,
@@ -171,56 +228,102 @@ impl Decoder {
             ));
         }
 
-        match cqc_hdr.msg_type {
+        self.decode_notify(&buffer[bytes..], cqc_hdr)
+    }
+
+    /// Decode a CQC header.
+    ///
+    /// Returns a `Status` object if no error during parsing occurred.  If the
+    /// data provided is incomplete and a CQC packet cannot be constructed a
+    /// `Status::Partial` is returned.
+    pub fn decode_cqc_hdr(&self, buffer: &[u8]) -> Result {
+        let end: usize = CQC_HDR_LENGTH as usize;
+
+        if buffer.len() >= end {
+            let cqc_hdr: CqcHdr = match self.config.deserialize_from(&buffer[..end]) {
+                Ok(result) => result,
+                Err(e) => return Err(Error::Deserialize(e)),
+            };
+
+            if cqc_hdr.version != CQC_VERSION {
+                return Err(Error::Version(cqc_hdr.version));
+            }
+
+            return Ok((
+                CQC_HDR_LENGTH as usize,
+                Status::Complete(CqcPacket::CqcHdr(cqc_hdr)),
+            ));
+        }
+
+        Ok((0, Status::Partial))
+    }
+
+    /// Decode a Notify or Entanglement Info header.
+    ///
+    /// Returns a `Status` object if no error during parsing occurred.  If the
+    /// data provided is incomplete and a CQC packet cannot be constructed a
+    /// `Status::Partial` is returned.
+    pub fn decode_notify(&self, buffer: &[u8], cqc_hdr: CqcHdr) -> Result {
+        let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
+
+        match msg_type {
             MsgType::Tp(CqcTp::Recv) | MsgType::Tp(CqcTp::Measout) | MsgType::Tp(CqcTp::NewOk) => {
-                if cqc_hdr.length < NOTIFY_HDR_LENGTH {
+                if length < NOTIFY_HDR_LENGTH {
                     return Err(Error::Invalid(format!(
                         "Need at least {} bytes for Notify Header, packet has {}",
-                        NOTIFY_HDR_LENGTH, cqc_hdr.length
+                        NOTIFY_HDR_LENGTH, length
                     )));
                 }
 
-                end += NOTIFY_HDR_LENGTH as usize;
+                let end = NOTIFY_HDR_LENGTH as usize;
                 if buffer.len() >= end {
-                    match self.config.deserialize_from(&buffer[pos..end]) {
+                    match self.config.deserialize_from(&buffer[..end]) {
                         Ok(result) => {
                             return Ok((
-                                (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
+                                (CQC_HDR_LENGTH + length) as usize,
                                 Status::Complete(CqcPacket::Response(Response {
                                     cqc_hdr,
                                     notify: Some(RspNotify::Notify(result)),
                                 })),
-                            ))
+                            ));
                         }
                         Err(e) => return Err(Error::Deserialize(e)),
                     };
                 }
             }
             MsgType::Tp(CqcTp::EprOk) => {
-                if cqc_hdr.length < ENT_INFO_HDR_LENGTH {
+                if length < ENT_INFO_HDR_LENGTH {
                     return Err(Error::Invalid(format!(
                         "Need at least {} bytes for Entanglement Info, packet has {}",
-                        ENT_INFO_HDR_LENGTH, cqc_hdr.length
+                        ENT_INFO_HDR_LENGTH, length
                     )));
                 }
 
-                end += ENT_INFO_HDR_LENGTH as usize;
+                let end = ENT_INFO_HDR_LENGTH as usize;
                 if buffer.len() >= end {
-                    match self.config.deserialize_from(&buffer[pos..end]) {
+                    match self.config.deserialize_from(&buffer[..end]) {
                         Ok(result) => {
                             return Ok((
-                                (CQC_HDR_LENGTH + cqc_hdr.length) as usize,
+                                (CQC_HDR_LENGTH + length) as usize,
                                 Status::Complete(CqcPacket::Response(Response {
                                     cqc_hdr,
                                     notify: Some(RspNotify::EntInfo(result)),
                                 })),
-                            ))
+                            ));
                         }
                         Err(e) => return Err(Error::Deserialize(e)),
                     };
                 }
             }
-            _ => {}
+            _ => {
+                return Ok((
+                    (CQC_HDR_LENGTH + length) as usize,
+                    Status::Complete(CqcPacket::Response(Response {
+                        cqc_hdr,
+                        notify: None,
+                    })),
+                ));
+            }
         }
 
         // If we reached here, there is nothing wrong with the data, but the

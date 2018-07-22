@@ -62,3 +62,33 @@ pub enum RspNotify {
     Notify(NotifyHdr),
     EntInfo(EntInfoHdr),
 }
+
+impl RspNotify {
+    pub fn is_notify_hdr(&self) -> bool {
+        match self {
+            &RspNotify::Notify(_) => true,
+            &RspNotify::EntInfo(_) => false,
+        }
+    }
+
+    pub fn get_notify_hdr(self) -> Option<NotifyHdr> {
+        match self {
+            RspNotify::Notify(notify_hdr) => Some(notify_hdr),
+            RspNotify::EntInfo(_) => None,
+        }
+    }
+
+    pub fn is_ent_info_hdr(&self) -> bool {
+        match self {
+            &RspNotify::Notify(_) => false,
+            &RspNotify::EntInfo(_) => true,
+        }
+    }
+
+    pub fn get_ent_info_hdr(self) -> Option<EntInfoHdr> {
+        match self {
+            RspNotify::Notify(_) => None,
+            RspNotify::EntInfo(ent_info_hdr) => Some(ent_info_hdr),
+        }
+    }
+}

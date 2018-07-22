@@ -36,6 +36,26 @@ impl Encoder {
         Encoder { config }
     }
 
+    /// Work out the number of bytes needed to encode the provided request.
+    pub fn encode_request_len<'buf>(request: &Request) -> usize {
+        let mut size: usize = CQC_HDR_LENGTH as usize;
+
+        if request.req_cmd.is_none() {
+            return size;
+        }
+
+        size += CMD_HDR_LENGTH as usize;
+
+        let req_cmd: &ReqCmd = request.req_cmd.as_ref().unwrap();
+        if req_cmd.xtra_hdr.is_none() {
+            return size;
+        }
+
+        size += XTRA_HDR_LENGTH as usize;
+
+        size
+    }
+
     /// Encode a CQC request packet into buffer of bytes.  The return value is
     /// a the number of bytes written.
     ///

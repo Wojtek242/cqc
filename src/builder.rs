@@ -192,7 +192,7 @@ fn build_request(app_id: u16, req_cmd: ReqCmd, msg_type: MsgType) -> Request {
 }
 
 /// Build a Command Header Request.
-fn build_req_cmd(qubit_id: u16, options: u8, xtra_hdr: Option<XtraHdr>, instr: Cmd) -> ReqCmd {
+pub fn build_req_cmd(qubit_id: u16, options: u8, xtra_hdr: Option<XtraHdr>, instr: Cmd) -> ReqCmd {
     let cmd_hdr = CmdHdr {
         qubit_id,
         instr,

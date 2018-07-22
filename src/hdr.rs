@@ -106,32 +106,24 @@ pub enum CqcErr {
     Timeout = 23, // Timeout.
 }
 
-impl Serialize for MsgType {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+impl MsgType {
+    pub fn is_tp(&self) -> bool {
         match self {
-            MsgType::Tp(tp) => serializer.serialize_u8(*tp as u8),
-            MsgType::Err(err) => serializer.serialize_u8(*err as u8),
+            &MsgType::Tp(_) => true,
+            &MsgType::Err(_) => false,
         }
     }
-}
 
-struct MsgTypeVisitor;
-
-impl<'de> Visitor<'de> for MsgTypeVisitor {
-    type Value = MsgType;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid 8-bit CQC message type")
+    pub fn is_err(&self) -> bool {
+        match self {
+            &MsgType::Tp(_) => false,
+            &MsgType::Err(_) => true,
+        }
     }
 
-    fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
-    where
-        E: de::Error,
-    {
+    /// Convert an 8-bit value to a message type.  Returns `None` if the value
+    /// does not correspond to a valid message type.
+    pub fn get_msg_type(value: u8) -> Option<MsgType> {
         let msg_type = match value {
             0 => MsgType::Tp(CqcTp::Hello),
             1 => MsgType::Tp(CqcTp::Command),
@@ -150,7 +142,42 @@ impl<'de> Visitor<'de> for MsgTypeVisitor {
             22 => MsgType::Err(CqcErr::Unsupp),
             23 => MsgType::Err(CqcErr::Timeout),
 
-            _ => return Err(E::custom(format!("Invalid CQC message type: {}", value))),
+            _ => return None,
+        };
+
+        Some(msg_type)
+    }
+}
+
+impl Serialize for MsgType {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            &MsgType::Tp(tp) => serializer.serialize_u8(tp as u8),
+            &MsgType::Err(err) => serializer.serialize_u8(err as u8),
+        }
+    }
+}
+
+struct MsgTypeVisitor;
+
+impl<'de> Visitor<'de> for MsgTypeVisitor {
+    type Value = MsgType;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC message type")
+    }
+
+    fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
+    where
+        E: de::Error,
+    {
+        let msg_type = match MsgType::get_msg_type(value) {
+            Some(msg_type) => msg_type,
+            None => return Err(E::custom(format!("Invalid CQC message type: {}", value))),
         };
 
         Ok(msg_type)
@@ -293,30 +320,11 @@ pub enum Cmd {
     Cphase = 21, // CPHASE Gate with this as control.
 }
 
-impl Serialize for Cmd {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u8(*self as u8)
-    }
-}
-
-struct CmdVisitor;
-
-impl<'de> Visitor<'de> for CmdVisitor {
-    type Value = Cmd;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid 8-bit CQC isntruction type")
-    }
-
-    fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
-    where
-        E: de::Error,
-    {
-        let instr = match value {
+impl Cmd {
+    /// Convert an 8-bit value to a command type.  Returns `None` if the value
+    /// does not correspond to a valid command type.
+    pub fn get_cmd(value: u8) -> Option<Cmd> {
+        let command = match value {
             0 => Cmd::I,
             1 => Cmd::New,
             2 => Cmd::Measure,
@@ -340,7 +348,39 @@ impl<'de> Visitor<'de> for CmdVisitor {
             20 => Cmd::Cnot,
             21 => Cmd::Cphase,
 
-            _ => {
+            _ => return None,
+        };
+
+        Some(command)
+    }
+}
+
+impl Serialize for Cmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+struct CmdVisitor;
+
+impl<'de> Visitor<'de> for CmdVisitor {
+    type Value = Cmd;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC isntruction type")
+    }
+
+    fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
+    where
+        E: de::Error,
+    {
+        let instr = match Cmd::get_cmd(value) {
+            Some(cmd) => cmd,
+            None => {
                 return Err(E::custom(format!(
                     "Invalid CQC instruction type: {}",
                     value
