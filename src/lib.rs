@@ -27,7 +27,6 @@ use hdr::*;
 /// A valid CQC request will always begin with the CQC header.  A command
 /// header must follow for certain message types.
 
-#[derive(Serialize, Deserialize)]
 pub struct Request {
     pub cqc_hdr: CqcHdr,
     pub req_cmd: Option<ReqCmd>,
@@ -39,7 +38,6 @@ pub struct Request {
 /// consists of the Command Header and for certain command types an additional
 /// Xtra header is required.
 
-#[derive(Serialize, Deserialize)]
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
     pub xtra_hdr: Option<XtraHdr>,
@@ -51,13 +49,11 @@ pub struct ReqCmd {
 /// response.  It begins with a CQC Header followed by either a Notify Header
 /// or an Entanglement Information Header.
 
-#[derive(Serialize, Deserialize)]
 pub struct Response {
     pub msg_hdr: CqcHdr,
     pub notify: Option<RspNotify>,
 }
 
-#[derive(Serialize, Deserialize)]
 pub enum RspNotify {
     Notify(NotifyHdr),
     EntInfo(EntInfoHdr),
