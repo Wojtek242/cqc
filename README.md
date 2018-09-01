@@ -1,8 +1,14 @@
 CQC
 ===
 
+[![Latest version](https://img.shields.io/crates/v/cqc.svg)](https://crates.io/crates/cqc)
+[![Documentation](https://docs.rs/cqc/badge.svg)](https://docs.rs/cqc)
+![License](https://img.shields.io/crates/l/cqc.svg)
+
 A Rust implementation of the [CQC
 interface](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html).
+
+- [Documentation](https://docs.rs/cqc)
 
 ## Usage
 
