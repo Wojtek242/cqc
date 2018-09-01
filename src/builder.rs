@@ -57,7 +57,7 @@ pub struct RemoteId {
 pub fn hello(app_id: u16) -> Request {
     let cqc_hdr = CqcHdr {
         version: CQC_VERSION,
-        msg_type: MsgType::Tp(CqcTp::Hello),
+        msg_type: MsgType::Tp(Tp::Hello),
         app_id: app_id,
         length: 0,
     };
@@ -70,16 +70,16 @@ pub fn hello(app_id: u16) -> Request {
 
 /// Build a command request.
 pub fn command(app_id: u16, req_cmd: ReqCmd) -> Request {
-    build_request(app_id, req_cmd, MsgType::Tp(CqcTp::Command))
+    build_request(app_id, req_cmd, MsgType::Tp(Tp::Command))
 }
 /// Build a factory request.
 pub fn factory(app_id: u16, req_cmd: ReqCmd) -> Request {
-    build_request(app_id, req_cmd, MsgType::Tp(CqcTp::Factory))
+    build_request(app_id, req_cmd, MsgType::Tp(Tp::Factory))
 }
 /// Build a qubit creation time query.
 pub fn get_time(app_id: u16, qubit_id: u16) -> Request {
     let req_cmd = cmd_i(qubit_id, 0);
-    build_request(app_id, req_cmd, MsgType::Tp(CqcTp::GetTime))
+    build_request(app_id, req_cmd, MsgType::Tp(Tp::GetTime))
 }
 
 /// Build an identity operation command request.

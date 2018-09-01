@@ -77,13 +77,13 @@ pub const CQC_HDR_LENGTH: u32 = 8;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
-    Tp(CqcTp),
-    Err(CqcErr),
+    Tp(Tp),
+    Err(Err),
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum CqcTp {
+pub enum Tp {
     Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
     Factory = 2, // Start executing command list repeatedly.
@@ -99,7 +99,7 @@ pub enum CqcTp {
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum CqcErr {
+pub enum Err {
     General = 20, // General purpose error (no details.
     Noqubit = 21, // No more qubits available.
     Unsupp = 22,  // Command sequence not supported.
@@ -107,6 +107,7 @@ pub enum CqcErr {
 }
 
 impl MsgType {
+    #[inline]
     pub fn is_tp(&self) -> bool {
         match self {
             &MsgType::Tp(_) => true,
@@ -114,6 +115,7 @@ impl MsgType {
         }
     }
 
+    #[inline]
     pub fn is_err(&self) -> bool {
         match self {
             &MsgType::Tp(_) => false,
@@ -121,26 +123,147 @@ impl MsgType {
         }
     }
 
+    #[inline]
+    pub fn is_hello(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Hello) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_command(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Command) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_factory(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Factory) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_expire(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Expire) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_done(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Done) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_recv(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Recv) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_epr_ok(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::EprOk) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_measout(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Measout) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_get_time(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::GetTime) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_inf_time(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::InfTime) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_new_ok(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::NewOk) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_general(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::General) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_noqubit(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Noqubit) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_unsupp(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Unsupp) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_timeout(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Timeout) => true,
+            _ => false,
+        }
+    }
+
     /// Convert an 8-bit value to a message type.  Returns `None` if the value
     /// does not correspond to a valid message type.
+    #[inline]
     pub fn get_msg_type(value: u8) -> Option<MsgType> {
         let msg_type = match value {
-            0 => MsgType::Tp(CqcTp::Hello),
-            1 => MsgType::Tp(CqcTp::Command),
-            2 => MsgType::Tp(CqcTp::Factory),
-            3 => MsgType::Tp(CqcTp::Expire),
-            4 => MsgType::Tp(CqcTp::Done),
-            5 => MsgType::Tp(CqcTp::Recv),
-            6 => MsgType::Tp(CqcTp::EprOk),
-            7 => MsgType::Tp(CqcTp::Measout),
-            8 => MsgType::Tp(CqcTp::GetTime),
-            9 => MsgType::Tp(CqcTp::InfTime),
-            10 => MsgType::Tp(CqcTp::NewOk),
+            0 => MsgType::Tp(Tp::Hello),
+            1 => MsgType::Tp(Tp::Command),
+            2 => MsgType::Tp(Tp::Factory),
+            3 => MsgType::Tp(Tp::Expire),
+            4 => MsgType::Tp(Tp::Done),
+            5 => MsgType::Tp(Tp::Recv),
+            6 => MsgType::Tp(Tp::EprOk),
+            7 => MsgType::Tp(Tp::Measout),
+            8 => MsgType::Tp(Tp::GetTime),
+            9 => MsgType::Tp(Tp::InfTime),
+            10 => MsgType::Tp(Tp::NewOk),
 
-            20 => MsgType::Err(CqcErr::General),
-            21 => MsgType::Err(CqcErr::Noqubit),
-            22 => MsgType::Err(CqcErr::Unsupp),
-            23 => MsgType::Err(CqcErr::Timeout),
+            20 => MsgType::Err(Err::General),
+            21 => MsgType::Err(Err::Noqubit),
+            22 => MsgType::Err(Err::Unsupp),
+            23 => MsgType::Err(Err::Timeout),
 
             _ => return None,
         };
@@ -167,10 +290,12 @@ struct MsgTypeVisitor;
 impl<'de> Visitor<'de> for MsgTypeVisitor {
     type Value = MsgType;
 
+    #[inline]
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a valid 8-bit CQC message type")
     }
 
+    #[inline]
     fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
     where
         E: de::Error,
@@ -185,6 +310,7 @@ impl<'de> Visitor<'de> for MsgTypeVisitor {
 }
 
 impl<'de> Deserialize<'de> for MsgType {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<MsgType, D::Error>
     where
         D: Deserializer<'de>,
@@ -323,6 +449,7 @@ pub enum Cmd {
 impl Cmd {
     /// Convert an 8-bit value to a command type.  Returns `None` if the value
     /// does not correspond to a valid command type.
+    #[inline]
     pub fn get_cmd(value: u8) -> Option<Cmd> {
         let command = match value {
             0 => Cmd::I,
@@ -370,10 +497,12 @@ struct CmdVisitor;
 impl<'de> Visitor<'de> for CmdVisitor {
     type Value = Cmd;
 
+    #[inline]
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a valid 8-bit CQC isntruction type")
     }
 
+    #[inline]
     fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
     where
         E: de::Error,
@@ -393,6 +522,7 @@ impl<'de> Visitor<'de> for CmdVisitor {
 }
 
 impl<'de> Deserialize<'de> for Cmd {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Cmd, D::Error>
     where
         D: Deserializer<'de>,
@@ -584,7 +714,7 @@ mod tests {
     fn cqc_hdr_ser_size() {
         let cqc_hdr = CqcHdr {
             version: CQC_VERSION,
-            msg_type: MsgType::Tp(CqcTp::Hello),
+            msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
         };

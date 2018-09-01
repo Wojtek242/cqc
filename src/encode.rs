@@ -130,7 +130,7 @@ mod tests {
     // Encode a request packet that only has a CQC header.
     #[test]
     fn cqc_hdr_encode() {
-        let cqc_type = CqcTp::Hello;
+        let cqc_type = Tp::Hello;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = 0;
 
@@ -192,7 +192,7 @@ mod tests {
     // Encode a packet that has a CMD header, but no XTRA header.
     #[test]
     fn cmd_hdr_encode() {
-        let cqc_type = CqcTp::Command;
+        let cqc_type = Tp::Command;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = CMD_HDR_LENGTH;
 
@@ -281,7 +281,7 @@ mod tests {
     // Encode a packet with a CMD and XTRA headers.
     #[test]
     fn xtra_hdr_encode() {
-        let cqc_type = CqcTp::Command;
+        let cqc_type = Tp::Command;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = CMD_HDR_LENGTH + XTRA_HDR_LENGTH;
 
@@ -419,7 +419,7 @@ mod tests {
         // The CQC header.
         let cqc_hdr = CqcHdr {
             version: 0,
-            msg_type: MsgType::Tp(CqcTp::Hello),
+            msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
         };
@@ -447,7 +447,7 @@ mod tests {
         // The CQC header.
         let cqc_hdr = CqcHdr {
             version: 0,
-            msg_type: MsgType::Tp(CqcTp::Hello),
+            msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
         };
@@ -487,7 +487,7 @@ mod tests {
         // The CQC header.
         let cqc_hdr = CqcHdr {
             version: 0,
-            msg_type: MsgType::Tp(CqcTp::Hello),
+            msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
         };
@@ -538,7 +538,7 @@ mod tests {
         // The CQC header.
         let cqc_hdr = CqcHdr {
             version: 0,
-            msg_type: MsgType::Tp(CqcTp::Hello),
+            msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
         };

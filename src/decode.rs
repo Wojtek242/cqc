@@ -267,7 +267,7 @@ impl Decoder {
         let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
 
         match msg_type {
-            MsgType::Tp(CqcTp::Recv) | MsgType::Tp(CqcTp::Measout) | MsgType::Tp(CqcTp::NewOk) => {
+            MsgType::Tp(Tp::Recv) | MsgType::Tp(Tp::Measout) | MsgType::Tp(Tp::NewOk) => {
                 if length < NOTIFY_HDR_LENGTH {
                     return Err(Error::Invalid(format!(
                         "Need at least {} bytes for Notify Header, packet has {}",
@@ -291,7 +291,7 @@ impl Decoder {
                     };
                 }
             }
-            MsgType::Tp(CqcTp::EprOk) => {
+            MsgType::Tp(Tp::EprOk) => {
                 if length < ENT_INFO_HDR_LENGTH {
                     return Err(Error::Invalid(format!(
                         "Need at least {} bytes for Entanglement Info, packet has {}",
@@ -369,7 +369,7 @@ mod tests {
     // Decode a response packet that only has a CQC header.
     #[test]
     fn cqc_hdr_decode() {
-        let cqc_type = CqcTp::NewOk;
+        let cqc_type = Tp::NewOk;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = 0;
 
@@ -430,7 +430,7 @@ mod tests {
     // Decode a response packet that has CQC and Notify headers.
     #[test]
     fn notify_hdr_decode() {
-        let cqc_type = CqcTp::NewOk;
+        let cqc_type = Tp::NewOk;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = NOTIFY_HDR_LENGTH;
 
@@ -546,7 +546,7 @@ mod tests {
     // Decode a response packet that has CQC and Entanglement Info headers.
     #[test]
     fn ent_info_hdr_decode() {
-        let cqc_type = CqcTp::EprOk;
+        let cqc_type = Tp::EprOk;
         let msg_type = MsgType::Tp(cqc_type);
         let length: u32 = ENT_INFO_HDR_LENGTH;
 
@@ -709,7 +709,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Version")]
     fn invalid_version_decode() {
-        let cqc_type = CqcTp::NewOk;
+        let cqc_type = Tp::NewOk;
         let length: u32 = 0;
 
         let packet: Vec<u8> = vec![
@@ -733,7 +733,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Invalid")]
     fn invalid_type_decode() {
-        let cqc_type = CqcTp::NewOk;
+        let cqc_type = Tp::NewOk;
         let length: u32 = NOTIFY_HDR_LENGTH - 1;
 
         let packet: Vec<u8> = vec![
