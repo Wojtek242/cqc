@@ -3,6 +3,15 @@ name = "cqc"
 version = "0.1.0"
 authors = ["Wojciech Kozlowski <wk@wojciechkozlowski.eu>",
            "Marco Lam <cylammarco@gmail.com>"]
+license = "MIT"
+keywords = ["cqc", "quantum", "simulaqron"]
+readme = "README.md"
+repository = "https://github.com/Wojtek242/cqc"
+homepage = "https://github.com/Wojtek242/cqc"
+documentation = "https://docs.rs/cqc"
+description = """
+An implementation of the CQC interface.
+"""
 
 [dependencies]
 bincode = "1.0"
