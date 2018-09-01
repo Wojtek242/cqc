@@ -111,7 +111,6 @@ pub enum Status {
 }
 
 impl Status {
-    /// Convenience method to check if status is complete.
     #[inline]
     pub fn is_complete(&self) -> bool {
         match self {
@@ -120,7 +119,6 @@ impl Status {
         }
     }
 
-    /// Convenience method to check if status is partial.
     #[inline]
     pub fn is_partial(&self) -> bool {
         match self {
@@ -129,8 +127,6 @@ impl Status {
         }
     }
 
-    /// Convenience method to unwrap a Complete value.  Panics if the status is
-    /// `Partial`.
     pub fn unwrap(self) -> CqcPacket {
         match self {
             Status::Complete(cqc_packet) => cqc_packet,
