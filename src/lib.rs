@@ -12,6 +12,11 @@
 //! does not provide any I/O capabilities in order to maximise reusability by
 //! not putting any runtime constraints on the user.
 
+#[macro_use]
+extern crate bitflags;
+#[macro_use]
+extern crate serde_derive;
+
 pub mod hdr;
 pub mod builder;
 pub mod encode;
@@ -24,9 +29,10 @@ use hdr::*;
 /// A valid CQC request will always begin with the CQC header.  A command
 /// header must follow for certain message types.
 
+#[derive(Debug, PartialEq)]
 pub struct Request {
     pub cqc_hdr: CqcHdr,
-    pub command: Option<ReqCmd>,
+    pub req_cmd: Option<ReqCmd>,
 }
 
 /// # Command Request
@@ -35,6 +41,7 @@ pub struct Request {
 /// consists of the Command Header and for certain command types an additional
 /// Xtra header is required.
 
+#[derive(Debug, PartialEq)]
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
     pub xtra_hdr: Option<XtraHdr>,
@@ -46,12 +53,44 @@ pub struct ReqCmd {
 /// response.  It begins with a CQC Header followed by either a Notify Header
 /// or an Entanglement Information Header.
 
+#[derive(Debug, PartialEq)]
 pub struct Response {
-    pub msg_hdr: CqcHdr,
+    pub cqc_hdr: CqcHdr,
     pub notify: Option<RspNotify>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum RspNotify {
     Notify(NotifyHdr),
     EntInfo(EntInfoHdr),
+}
+
+impl RspNotify {
+    pub fn is_notify_hdr(&self) -> bool {
+        match self {
+            &RspNotify::Notify(_) => true,
+            &RspNotify::EntInfo(_) => false,
+        }
+    }
+
+    pub fn get_notify_hdr(self) -> Option<NotifyHdr> {
+        match self {
+            RspNotify::Notify(notify_hdr) => Some(notify_hdr),
+            RspNotify::EntInfo(_) => None,
+        }
+    }
+
+    pub fn is_ent_info_hdr(&self) -> bool {
+        match self {
+            &RspNotify::Notify(_) => false,
+            &RspNotify::EntInfo(_) => true,
+        }
+    }
+
+    pub fn get_ent_info_hdr(self) -> Option<EntInfoHdr> {
+        match self {
+            RspNotify::Notify(_) => None,
+            RspNotify::EntInfo(ent_info_hdr) => Some(ent_info_hdr),
+        }
+    }
 }

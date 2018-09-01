@@ -4,6 +4,14 @@
 //! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
 //! and defines the necessary constants and header structures.
 
+extern crate serde;
+
+use self::serde::de;
+use std::fmt;
+
+use self::serde::de::Visitor;
+use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 pub const CQC_VERSION: u8 = 0;
 
 /// # CQC Header
@@ -57,6 +65,7 @@ pub const CQC_VERSION: u8 = 0;
 ///  - Start executing command list repeatedly (msg_type=2).
 ///  - Get creation time of qubit (msg_type=8).
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CqcHdr {
     pub version: u8,
     pub msg_type: MsgType,
@@ -66,13 +75,15 @@ pub struct CqcHdr {
 
 pub const CQC_HDR_LENGTH: u32 = 8;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
-    Tp(CqcTp),
-    Err(CqcErr),
+    Tp(Tp),
+    Err(Err),
 }
 
 #[repr(u8)]
-pub enum CqcTp {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Tp {
     Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
     Factory = 2, // Start executing command list repeatedly.
@@ -87,11 +98,225 @@ pub enum CqcTp {
 }
 
 #[repr(u8)]
-pub enum CqcErr {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Err {
     General = 20, // General purpose error (no details.
     Noqubit = 21, // No more qubits available.
     Unsupp = 22,  // Command sequence not supported.
     Timeout = 23, // Timeout.
+}
+
+impl MsgType {
+    #[inline]
+    pub fn is_tp(&self) -> bool {
+        match self {
+            &MsgType::Tp(_) => true,
+            &MsgType::Err(_) => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err(&self) -> bool {
+        match self {
+            &MsgType::Tp(_) => false,
+            &MsgType::Err(_) => true,
+        }
+    }
+
+    #[inline]
+    pub fn is_hello(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Hello) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_command(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Command) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_factory(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Factory) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_expire(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Expire) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_done(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Done) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_recv(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Recv) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_epr_ok(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::EprOk) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_measout(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::Measout) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_get_time(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::GetTime) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_inf_time(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::InfTime) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_new_ok(&self) -> bool {
+        match self {
+            &MsgType::Tp(Tp::NewOk) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_general(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::General) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_noqubit(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Noqubit) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_unsupp(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Unsupp) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_timeout(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Timeout) => true,
+            _ => false,
+        }
+    }
+
+    /// Convert an 8-bit value to a message type.  Returns `None` if the value
+    /// does not correspond to a valid message type.
+    #[inline]
+    pub fn get_msg_type(value: u8) -> Option<MsgType> {
+        let msg_type = match value {
+            0 => MsgType::Tp(Tp::Hello),
+            1 => MsgType::Tp(Tp::Command),
+            2 => MsgType::Tp(Tp::Factory),
+            3 => MsgType::Tp(Tp::Expire),
+            4 => MsgType::Tp(Tp::Done),
+            5 => MsgType::Tp(Tp::Recv),
+            6 => MsgType::Tp(Tp::EprOk),
+            7 => MsgType::Tp(Tp::Measout),
+            8 => MsgType::Tp(Tp::GetTime),
+            9 => MsgType::Tp(Tp::InfTime),
+            10 => MsgType::Tp(Tp::NewOk),
+
+            20 => MsgType::Err(Err::General),
+            21 => MsgType::Err(Err::Noqubit),
+            22 => MsgType::Err(Err::Unsupp),
+            23 => MsgType::Err(Err::Timeout),
+
+            _ => return None,
+        };
+
+        Some(msg_type)
+    }
+}
+
+impl Serialize for MsgType {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            &MsgType::Tp(tp) => serializer.serialize_u8(tp as u8),
+            &MsgType::Err(err) => serializer.serialize_u8(err as u8),
+        }
+    }
+}
+
+struct MsgTypeVisitor;
+
+impl<'de> Visitor<'de> for MsgTypeVisitor {
+    type Value = MsgType;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC message type")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
+    where
+        E: de::Error,
+    {
+        let msg_type = match MsgType::get_msg_type(value) {
+            Some(msg_type) => msg_type,
+            None => return Err(E::custom(format!("Invalid CQC message type: {}", value))),
+        };
+
+        Ok(msg_type)
+    }
+}
+
+impl<'de> Deserialize<'de> for MsgType {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<MsgType, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(MsgTypeVisitor)
+    }
 }
 
 /// # CQC Command Header
@@ -152,7 +377,6 @@ pub enum CqcErr {
 /// instructions:
 ///
 ///  - Send qubit to another node (instr=5).
-///  - Ask to receive qubit (instr=6).
 ///  - Rotations (instr=14-16).
 ///  - Two qubit gates (instr=20,21).
 ///
@@ -175,8 +399,8 @@ pub enum CqcErr {
 /// message indicating that execution has completed (msg_type=4). Some commands
 /// also return additional messages, as described below:
 ///
-/// - New qubit (instr=1): Returns an OK response followed by a notify header
-///                        containing the qubit ID.
+/// - New qubit (instr=1): Returns an OK (msg_type=10) response followed by a
+///                        notify header containing the qubit ID.
 /// - Measurement (instr=2,3): Returns a measurement outcome message
 ///                            (msg_type=7) followed by a notify header
 ///                            containing the measurement outcome.
@@ -186,15 +410,17 @@ pub enum CqcErr {
 ///                    followed by a entanglement information header.
 ///
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
-    pub options: u8,
+    pub options: CmdOpt,
 }
 
 pub const CMD_HDR_LENGTH: u32 = 4;
 
 #[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cmd {
     I = 0,              // Identity (do nothing, wait one step).
     New = 1,            // Ask for a new qubit.
@@ -220,10 +446,184 @@ pub enum Cmd {
     Cphase = 21, // CPHASE Gate with this as control.
 }
 
-pub const CMD_OPT_NOTIFY: u8 = 0x01; // Send a notification when command completes.
-pub const CMD_OPT_ACTION: u8 = 0x02; // On if there are actions to execute when done.
-pub const CMD_OPT_BLOCK: u8 = 0x04; // Block until command is done.
-pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
+impl Cmd {
+    /// Convert an 8-bit value to a command type.  Returns `None` if the value
+    /// does not correspond to a valid command type.
+    #[inline]
+    pub fn get_cmd(value: u8) -> Option<Cmd> {
+        let command = match value {
+            0 => Cmd::I,
+            1 => Cmd::New,
+            2 => Cmd::Measure,
+            3 => Cmd::MeasureInplace,
+            4 => Cmd::Reset,
+            5 => Cmd::Send,
+            6 => Cmd::Recv,
+            7 => Cmd::Epr,
+            8 => Cmd::EprRecv,
+
+            10 => Cmd::X,
+            11 => Cmd::Z,
+            12 => Cmd::Y,
+            13 => Cmd::T,
+            14 => Cmd::RotX,
+            15 => Cmd::RotY,
+            16 => Cmd::RotZ,
+            17 => Cmd::H,
+            18 => Cmd::K,
+
+            20 => Cmd::Cnot,
+            21 => Cmd::Cphase,
+
+            _ => return None,
+        };
+
+        Some(command)
+    }
+}
+
+impl Serialize for Cmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+struct CmdVisitor;
+
+impl<'de> Visitor<'de> for CmdVisitor {
+    type Value = Cmd;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid 8-bit CQC instruction type")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
+    where
+        E: de::Error,
+    {
+        let instr = match Cmd::get_cmd(value) {
+            Some(cmd) => cmd,
+            None => {
+                return Err(E::custom(format!(
+                    "Invalid CQC instruction type: {}",
+                    value
+                )))
+            }
+        };
+
+        Ok(instr)
+    }
+}
+
+impl<'de> Deserialize<'de> for Cmd {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Cmd, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(CmdVisitor)
+    }
+}
+
+bitflags! {
+    pub struct CmdOpt: u8 {
+        const NOTIFY = 0x01;
+        const ACTION = 0x02;
+        const BLOCK = 0x04;
+        const IFTHEN = 0x08;
+    }
+}
+
+impl CmdOpt {
+    #[inline]
+    pub fn set_notify(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::NOTIFY);
+        self
+    }
+
+    #[inline]
+    pub fn set_action(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::ACTION);
+        self
+    }
+
+    #[inline]
+    pub fn set_block(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::BLOCK);
+        self
+    }
+
+    #[inline]
+    pub fn set_ifthen(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::IFTHEN);
+        self
+    }
+
+    #[inline]
+    pub fn get_notify(&self) -> bool {
+        self.contains(CmdOpt::NOTIFY)
+    }
+
+    #[inline]
+    pub fn get_action(&self) -> bool {
+        self.contains(CmdOpt::ACTION)
+    }
+
+    #[inline]
+    pub fn get_block(&self) -> bool {
+        self.contains(CmdOpt::BLOCK)
+    }
+
+    #[inline]
+    pub fn get_ifthen(&self) -> bool {
+        self.contains(CmdOpt::IFTHEN)
+    }
+}
+
+impl Serialize for CmdOpt {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(self.bits())
+    }
+}
+
+struct CmdOptVisitor;
+
+impl<'de> Visitor<'de> for CmdOptVisitor {
+    type Value = CmdOpt;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("valid 8-bit CQC command options")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<CmdOpt, E>
+    where
+        E: de::Error,
+    {
+        Ok(CmdOpt::from_bits_truncate(value))
+    }
+}
+
+impl<'de> Deserialize<'de> for CmdOpt {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<CmdOpt, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(CmdOptVisitor)
+    }
+}
 
 /// # CQC Xtra Header
 ///
@@ -233,7 +633,6 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// following instructions:
 ///
 ///  - Send qubit to another node (instr=5).
-///  - Ask to receive qubit (instr=6).
 ///  - Rotations (instr=14-16).
 ///  - Two qubit gates (instr=20,21).
 ///
@@ -265,6 +664,7 @@ pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
 /// align          1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct XtraHdr {
     pub xtra_qubit_id: u16,
     pub remote_app_id: u16,
@@ -309,6 +709,7 @@ pub const XTRA_HDR_LENGTH: u32 = 16;
 /// align          1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NotifyHdr {
     pub qubit_id: u16,
     pub remote_ap_id: u16,
@@ -373,6 +774,7 @@ pub const NOTIFY_HDR_LENGTH: u32 = 20;
 /// align      1 byte     4 byte alignment.
 /// ```
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct EntInfoHdr {
     pub node_a: u32,
     pub port_a: u16,
@@ -392,34 +794,82 @@ pub const ENT_INFO_HDR_LENGTH: u32 = 40;
 
 #[cfg(test)]
 mod tests {
+    extern crate bincode;
+
+    use self::bincode::serialize;
     use super::*;
-    use std::mem;
 
-    // TODO: These don't pass, but that doesn't matter.  The comparison should
-    // be between a serialised version of the structs, not Rust's
-    // representation in memory.
     #[test]
-    fn cqc_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<CqcHdr>() as u32, CQC_HDR_LENGTH);
+    fn cqc_hdr_ser_size() {
+        let cqc_hdr = CqcHdr {
+            version: CQC_VERSION,
+            msg_type: MsgType::Tp(Tp::Hello),
+            app_id: 0,
+            length: 0,
+        };
+        assert_eq!(serialize(&cqc_hdr).unwrap().len() as u32, CQC_HDR_LENGTH);
     }
 
     #[test]
-    fn cmd_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<CmdHdr>() as u32, CMD_HDR_LENGTH);
+    fn cmd_hdr_ser_size() {
+        let cmd_hdr = CmdHdr {
+            qubit_id: 0,
+            instr: Cmd::I,
+            options: CmdOpt::empty(),
+        };
+        assert_eq!(serialize(&cmd_hdr).unwrap().len() as u32, CMD_HDR_LENGTH);
     }
 
     #[test]
-    fn xtra_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<XtraHdr>() as u32, XTRA_HDR_LENGTH);
+    fn xtra_hdr_ser_size() {
+        let xtra_hdr = XtraHdr {
+            xtra_qubit_id: 0,
+            remote_app_id: 0,
+            remote_node: 0,
+            cmd_length: 0,
+            remote_port: 0,
+            steps: 0,
+            align: 0,
+        };
+        assert_eq!(serialize(&xtra_hdr).unwrap().len() as u32, XTRA_HDR_LENGTH);
     }
 
     #[test]
-    fn notify_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<NotifyHdr>() as u32, NOTIFY_HDR_LENGTH);
+    fn notify_hdr_ser_size() {
+        let notify_hdr = NotifyHdr {
+            qubit_id: 0,
+            remote_ap_id: 0,
+            remote_node: 0,
+            timestamp: 0,
+            remote_port: 0,
+            outcome: 0,
+            align: 0,
+        };
+        assert_eq!(
+            serialize(&notify_hdr).unwrap().len() as u32,
+            NOTIFY_HDR_LENGTH
+        );
     }
 
     #[test]
-    fn ent_info_hdr_mem_size() {
-        // assert_eq!(mem::size_of::<EntInfoHdr>() as u32, ENT_INFO_HDR_LENGTH);
+    fn ent_info_hdr_ser_size() {
+        let ent_info_hdr = EntInfoHdr {
+            node_a: 0,
+            port_a: 0,
+            app_id_a: 0,
+            node_b: 0,
+            port_b: 0,
+            app_id_b: 0,
+            id_ab: 0,
+            timestamp: 0,
+            tog: 0,
+            goodness: 0,
+            df: 0,
+            align: 0,
+        };
+        assert_eq!(
+            serialize(&ent_info_hdr).unwrap().len() as u32,
+            ENT_INFO_HDR_LENGTH
+        );
     }
 }
