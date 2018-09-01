@@ -5,9 +5,9 @@
 extern crate bincode;
 
 use hdr::*;
-use std::result;
-use std::fmt;
 use std::error;
+use std::fmt;
+use std::result;
 use {Request, Response, RspNotify};
 
 /// An error in decoding.
@@ -179,7 +179,7 @@ impl Decoder {
         let (bytes, status) = self.decode_cqc_hdr(buffer)?;
 
         let cqc_hdr = match status {
-            Status::Complete(CqcPacket::CqcHdr(pkt)) => pkt,
+            Status::Complete(CqcPacket::CqcHdr(hdr)) => hdr,
             Status::Partial => return Ok((0, Status::Partial)),
             _ => panic!(),
         };
@@ -194,7 +194,7 @@ impl Decoder {
             ));
         }
 
-        self.decode_notify(&buffer[bytes..], cqc_hdr)
+        self.decode_notify(cqc_hdr, &buffer[bytes..])
     }
 
     /// Decode a CQC header.
@@ -202,7 +202,7 @@ impl Decoder {
     /// Returns a `Status` object if no error during parsing occurred.  If the
     /// data provided is incomplete and a CQC packet cannot be constructed a
     /// `Status::Partial` is returned.
-    pub fn decode_cqc_hdr(&self, buffer: &[u8]) -> Result {
+    fn decode_cqc_hdr(&self, buffer: &[u8]) -> Result {
         let end: usize = CQC_HDR_LENGTH as usize;
 
         if buffer.len() >= end {
@@ -229,7 +229,7 @@ impl Decoder {
     /// Returns a `Status` object if no error during parsing occurred.  If the
     /// data provided is incomplete and a CQC packet cannot be constructed a
     /// `Status::Partial` is returned.
-    pub fn decode_notify(&self, buffer: &[u8], cqc_hdr: CqcHdr) -> Result {
+    fn decode_notify(&self, cqc_hdr: CqcHdr, buffer: &[u8]) -> Result {
         let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
 
         match msg_type {
