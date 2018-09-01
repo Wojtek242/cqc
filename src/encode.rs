@@ -205,7 +205,8 @@ mod tests {
         };
 
         let instr = Cmd::New;
-        let options = CMD_OPT_NOTIFY | CMD_OPT_BLOCK;
+        let mut options = CmdOpt::empty();
+        options.set_notify().set_block();
 
         // The CMD header.
         let cmd_hdr = CmdHdr {
@@ -244,7 +245,7 @@ mod tests {
             get_byte_16!(QUBIT_ID, 1),
             get_byte_16!(QUBIT_ID, 0),
             instr as u8,
-            options,
+            options.bits(),
         ];
 
         let encoder = Encoder::little_endian();
@@ -270,7 +271,7 @@ mod tests {
             get_byte_16!(QUBIT_ID, 0),
             get_byte_16!(QUBIT_ID, 1),
             instr as u8,
-            options,
+            options.bits(),
         ];
 
         let encoder = Encoder::big_endian();
@@ -294,7 +295,8 @@ mod tests {
         };
 
         let instr = Cmd::Send;
-        let options = CMD_OPT_NOTIFY | CMD_OPT_BLOCK;
+        let mut options = CmdOpt::empty();
+        options.set_notify().set_block();
 
         // The CMD header.
         let cmd_hdr = CmdHdr {
@@ -344,7 +346,7 @@ mod tests {
             get_byte_16!(QUBIT_ID, 1),
             get_byte_16!(QUBIT_ID, 0),
             instr as u8,
-            options,
+            options.bits(),
             // XTRA header
             0x00,
             0x00,
@@ -387,7 +389,7 @@ mod tests {
             get_byte_16!(QUBIT_ID, 0),
             get_byte_16!(QUBIT_ID, 1),
             instr as u8,
-            options,
+            options.bits(),
             // XTRA header
             0x00,
             0x00,
@@ -456,7 +458,7 @@ mod tests {
         let cmd_hdr = CmdHdr {
             qubit_id: 0,
             instr: Cmd::I,
-            options: 0,
+            options: CmdOpt::empty(),
         };
 
         let req_cmd = ReqCmd {
@@ -496,7 +498,7 @@ mod tests {
         let cmd_hdr = CmdHdr {
             qubit_id: 0,
             instr: Cmd::I,
-            options: 0,
+            options: CmdOpt::empty(),
         };
 
         // The XTRA header.

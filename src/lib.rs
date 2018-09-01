@@ -13,6 +13,8 @@
 //! not putting any runtime constraints on the user.
 
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate serde_derive;
 
 pub mod hdr;

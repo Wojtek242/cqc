@@ -139,40 +139,6 @@ impl Status {
     }
 }
 
-/// Convenience functions for reading bitwise options.
-pub trait GetOpts {
-    /// Convenience function to get the notify bit-flag.
-    fn get_opt_notify(&self) -> bool;
-    /// Convenience function to get the action bit-flag.
-    fn get_opt_action(&self) -> bool;
-    /// Convenience function to get the block bit-flag.
-    fn get_opt_block(&self) -> bool;
-    /// Convenience function to get the if-then bit-flag.
-    fn get_opt_ifthen(&self) -> bool;
-}
-
-impl GetOpts for u8 {
-    #[inline]
-    fn get_opt_notify(&self) -> bool {
-        (self & CMD_OPT_NOTIFY) != 0
-    }
-
-    #[inline]
-    fn get_opt_action(&self) -> bool {
-        (self & CMD_OPT_ACTION) != 0
-    }
-
-    #[inline]
-    fn get_opt_block(&self) -> bool {
-        (self & CMD_OPT_BLOCK) != 0
-    }
-
-    #[inline]
-    fn get_opt_ifthen(&self) -> bool {
-        (self & CMD_OPT_IFTHEN) != 0
-    }
-}
-
 /// Packet decoder.
 ///
 /// Note that currently only the decoding of complete packets is supported.

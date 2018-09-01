@@ -414,7 +414,7 @@ impl<'de> Deserialize<'de> for MsgType {
 pub struct CmdHdr {
     pub qubit_id: u16,
     pub instr: Cmd,
-    pub options: u8,
+    pub options: CmdOpt,
 }
 
 pub const CMD_HDR_LENGTH: u32 = 4;
@@ -499,7 +499,7 @@ impl<'de> Visitor<'de> for CmdVisitor {
 
     #[inline]
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid 8-bit CQC isntruction type")
+        formatter.write_str("a valid 8-bit CQC instruction type")
     }
 
     #[inline]
@@ -531,10 +531,99 @@ impl<'de> Deserialize<'de> for Cmd {
     }
 }
 
-pub const CMD_OPT_NOTIFY: u8 = 0x01; // Send a notification when command completes.
-pub const CMD_OPT_ACTION: u8 = 0x02; // On if there are actions to execute when done.
-pub const CMD_OPT_BLOCK: u8 = 0x04; // Block until command is done.
-pub const CMD_OPT_IFTHEN: u8 = 0x08; // Execute command after done.
+bitflags! {
+    pub struct CmdOpt: u8 {
+        const NOTIFY = 0x01;
+        const ACTION = 0x02;
+        const BLOCK = 0x04;
+        const IFTHEN = 0x08;
+    }
+}
+
+impl CmdOpt {
+    #[inline]
+    pub fn set_notify(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::NOTIFY);
+        self
+    }
+
+    #[inline]
+    pub fn set_action(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::ACTION);
+        self
+    }
+
+    #[inline]
+    pub fn set_block(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::BLOCK);
+        self
+    }
+
+    #[inline]
+    pub fn set_ifthen(&mut self) -> &mut CmdOpt {
+        self.insert(CmdOpt::IFTHEN);
+        self
+    }
+
+    #[inline]
+    pub fn get_notify(&self) -> bool {
+        self.contains(CmdOpt::NOTIFY)
+    }
+
+    #[inline]
+    pub fn get_action(&self) -> bool {
+        self.contains(CmdOpt::ACTION)
+    }
+
+    #[inline]
+    pub fn get_block(&self) -> bool {
+        self.contains(CmdOpt::BLOCK)
+    }
+
+    #[inline]
+    pub fn get_ifthen(&self) -> bool {
+        self.contains(CmdOpt::IFTHEN)
+    }
+}
+
+impl Serialize for CmdOpt {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(self.bits())
+    }
+}
+
+struct CmdOptVisitor;
+
+impl<'de> Visitor<'de> for CmdOptVisitor {
+    type Value = CmdOpt;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("valid 8-bit CQC command options")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<CmdOpt, E>
+    where
+        E: de::Error,
+    {
+        Ok(CmdOpt::from_bits_truncate(value))
+    }
+}
+
+impl<'de> Deserialize<'de> for CmdOpt {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<CmdOpt, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(CmdOptVisitor)
+    }
+}
 
 /// # CQC Xtra Header
 ///
@@ -726,7 +815,7 @@ mod tests {
         let cmd_hdr = CmdHdr {
             qubit_id: 0,
             instr: Cmd::I,
-            options: 0,
+            options: CmdOpt::empty(),
         };
         assert_eq!(serialize(&cmd_hdr).unwrap().len() as u32, CMD_HDR_LENGTH);
     }
