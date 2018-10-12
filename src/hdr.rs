@@ -12,7 +12,7 @@ use std::fmt;
 use self::serde::de::Visitor;
 use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub const CQC_VERSION: u8 = 0;
+pub const CQC_VERSION: u8 = 1;
 
 /// # CQC Header
 ///
@@ -39,32 +39,33 @@ pub const CQC_VERSION: u8 = 0;
 /// ## Possible Message Types
 ///
 /// ```text
-/// Type     Meaning
-/// ----     -------
-///  0       Alive check.
-///  1       Execute a command list.
-///  2       Start executing command list repeatedly.
-///  3       Qubit has expired.
-///  4       Command execution done.
-///  5       Received qubit.
-///  6       Created EPR pair.
-///  7       Measurement outcome.
-///  8       Get creation time of qubit.
-///  9       Inform about time.
-///  10      Created new qubit.
+/// Type     Name       Meaning
+/// ----     ----       -------
+///  0       Hello      Alive check.
+///  1       Command    Execute a command list.
+///  2       Factory    Start executing command list repeatedly.
+///  3       Expire     Qubit has expired.
+///  4       Done       Command execution done.
+///  5       Recv       Received qubit.
+///  6       EprOk      Created EPR pair.
+///  7       MeasOut    Measurement outcome.
+///  8       GetTime    Get creation time of qubit.
+///  9       InfTime    Inform about time.
+///  10      NewOk      Created new qubit.
 ///
-///  20      General purpose error (no details).
-///  21      No more qubits available.
-///  22      Command sequence not supported.
-///  23      Timeout.
+///  20      General    General purpose error (no details).
+///  21      NoQubit    No more qubits available.
+///  22      Unsupp     Command sequence not supported.
+///  23      Timeout    Timeout.
+///  24      InUse      Qubit already in use.
+///  25      Unknown    Unknown qubit ID.
 /// ```
 ///
 /// A CQC Command Header MUST follow the CQC Header for the following messages:
 ///
-///  - Execute a command list (msg_type=1).
-///  - Start executing command list repeatedly (msg_type=2).
-///  - Get creation time of qubit (msg_type=8).
-
+///  - Command
+///  - Factory
+///  - GetTime
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CqcHdr {
     pub version: u8,
@@ -84,26 +85,28 @@ pub enum MsgType {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Tp {
-    Hello = 0,   // Alive check.
+    Hello = 0, // Alive check.
     Command = 1, // Execute a command list.
     Factory = 2, // Start executing command list repeatedly.
-    Expire = 3,  // Qubit has expired.
-    Done = 4,    // Command execution done.
-    Recv = 5,    // Recevied qubit.
-    EprOk = 6,   // Created EPR pair.
-    Measout = 7, // Measurement outcome.
+    Expire = 3, // Qubit has expired.
+    Done = 4, // Command execution done.
+    Recv = 5, // Recevied qubit.
+    EprOk = 6, // Created EPR pair.
+    MeasOut = 7, // Measurement outcome.
     GetTime = 8, // Get creation time of qubit.
     InfTime = 9, // Inform about time.
-    NewOk = 10,  // Created new qubit.
+    NewOk = 10, // Created new qubit.
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Err {
     General = 20, // General purpose error (no details.
-    Noqubit = 21, // No more qubits available.
-    Unsupp = 22,  // Command sequence not supported.
+    NoQubit = 21, // No more qubits available.
+    Unsupp = 22, // Command sequence not supported.
     Timeout = 23, // Timeout.
+    InUse = 24, // Qubit already in use.
+    Unknown = 25, // Unknown qubit ID
 }
 
 impl MsgType {
@@ -182,7 +185,7 @@ impl MsgType {
     #[inline]
     pub fn is_measout(&self) -> bool {
         match self {
-            &MsgType::Tp(Tp::Measout) => true,
+            &MsgType::Tp(Tp::MeasOut) => true,
             _ => false,
         }
     }
@@ -222,7 +225,7 @@ impl MsgType {
     #[inline]
     pub fn is_err_noqubit(&self) -> bool {
         match self {
-            &MsgType::Err(Err::Noqubit) => true,
+            &MsgType::Err(Err::NoQubit) => true,
             _ => false,
         }
     }
@@ -243,6 +246,22 @@ impl MsgType {
         }
     }
 
+    #[inline]
+    pub fn is_err_inuse(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::InUse) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_err_unknown(&self) -> bool {
+        match self {
+            &MsgType::Err(Err::Unknown) => true,
+            _ => false,
+        }
+    }
+
     /// Convert an 8-bit value to a message type.  Returns `None` if the value
     /// does not correspond to a valid message type.
     #[inline]
@@ -255,15 +274,17 @@ impl MsgType {
             4 => MsgType::Tp(Tp::Done),
             5 => MsgType::Tp(Tp::Recv),
             6 => MsgType::Tp(Tp::EprOk),
-            7 => MsgType::Tp(Tp::Measout),
+            7 => MsgType::Tp(Tp::MeasOut),
             8 => MsgType::Tp(Tp::GetTime),
             9 => MsgType::Tp(Tp::InfTime),
             10 => MsgType::Tp(Tp::NewOk),
 
             20 => MsgType::Err(Err::General),
-            21 => MsgType::Err(Err::Noqubit),
+            21 => MsgType::Err(Err::NoQubit),
             22 => MsgType::Err(Err::Unsupp),
             23 => MsgType::Err(Err::Timeout),
+            24 => MsgType::Err(Err::InUse),
+            25 => MsgType::Err(Err::Unknown),
 
             _ => return None,
         };
@@ -347,69 +368,56 @@ impl<'de> Deserialize<'de> for MsgType {
 /// ## Possible Instruction Types
 ///
 /// ```text
-/// Type     Meaning
-/// ----     -------
-///  0       Identity (do nothing, wait one step).
-///  1       Ask for a new qubit.
-///  2       Measure qubit.
-///  3       Measure qubit in-place.
-///  4       Reset qubit to |0>.
-///  5       Send qubit to another node.
-///  6       Ask to receive qubit.
-///  7       Create EPR pair with the specified node.
-///  8       Receive EPR pair.
+/// Type     Name            Meaning
+/// ----     ----            -------
+///  0       I               Identity (do nothing, wait one step).
+///  1       New             Ask for a new qubit.
+///  2       Measure         Measure qubit.
+///  3       MeasureInPlace  Measure qubit in-place.
+///  4       Reset           Reset qubit to |0>.
+///  5       Send            Send qubit to another node.
+///  6       Recv            Ask to receive qubit.
+///  7       Epr             Create EPR pair with the specified node.
+///  8       EprRecv         Receive EPR pair.
 ///
-///  10      Pauli X.
-///  11      Pauli Z.
-///  12      Pauli Y.
-///  13      T Gate.
-///  14      Rotation over angle around X in pi/256 increments.
-///  15      Rotation over angle around Y in pi/256 increments.
-///  16      Rotation over angle around Z in pi/256 increments.
-///  17      Hadamard Gate.
-///  18      K Gate - taking computational to Y eigenbasis.
+///  10      X               Pauli X.
+///  11      Z               Pauli Z.
+///  12      Y               Pauli Y.
+///  13      T               T Gate.
+///  14      RotX            Rotation over angle around X in pi/256 increments.
+///  15      RotY            Rotation over angle around Y in pi/256 increments.
+///  16      RotZ            Rotation over angle around Z in pi/256 increments.
+///  17      H               Hadamard Gate.
+///  18      K               K Gate - taking computational to Y eigenbasis.
 ///
-///  20      CNOT Gate with this as control.
-///  21      CPHASE Gate with this as control.
+///  20      Cnot            CNOT Gate with this as control.
+///  21      Cphase          CPHASE Gate with this as control.
 /// ```
-///
-/// A CQC Xtra Header MUST follow the CQC Command Header for the following
-/// instructions:
-///
-///  - Send qubit to another node (instr=5).
-///  - Rotations (instr=14-16).
-///  - Two qubit gates (instr=20,21).
 ///
 /// ## Command options
 ///
 /// Command options are set as bit flags.
 ///
 /// ```text
-/// Flag     Meaning
-/// ----     -------
-/// 0x01     Send a notification when command completes.
-/// 0x02     On if there are actions to execute when done.
-/// 0x04     Block until command is done.
-/// 0x08     Execute command after done.
+/// Flag     Name    Meaning
+/// ----     ----    -------
+/// 0x01     Notify  Send a notification when command completes.
+/// 0x02     Action  On if there are actions to execute when done.
+/// 0x04     Block   Block until command is done.
+/// 0x08     IfThen  Execute command after done.
 /// ```
 ///
 /// ## Notify
 ///
 /// If the notify option bit is set, each of these commands return a CQC
-/// message indicating that execution has completed (msg_type=4). Some commands
-/// also return additional messages, as described below:
+/// message Done indicating that execution has completed. Some commands also
+/// return additional messages, as described below:
 ///
-/// - New qubit (instr=1): Returns an OK (msg_type=10) response followed by a
-///                        notify header containing the qubit ID.
-/// - Measurement (instr=2,3): Returns a measurement outcome message
-///                            (msg_type=7) followed by a notify header
-///                            containing the measurement outcome.
-/// - Receive (instr=6): Returns a receive type message (msg_type=5) followed
-///                      by a notify header containing the qubit ID.
-/// - EPR (instr=7,8): Returns a response indicating EPR creation (msg_type=6)
-///                    followed by a entanglement information header.
-///
-
+/// - New: Returns a NewOk reply followed by a notify header with the qubit ID.
+/// - Measure(InPlace): Returns a MeasOut message followed by a notify header
+///                     containing the measurement outcome.
+/// - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
+/// - Epr(Recv): Returns an EprOk reply by an entanglement information header.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CmdHdr {
     pub qubit_id: u16,
@@ -422,27 +430,27 @@ pub const CMD_HDR_LENGTH: u32 = 4;
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cmd {
-    I = 0,              // Identity (do nothing, wait one step).
-    New = 1,            // Ask for a new qubit.
-    Measure = 2,        // Measure qubit.
+    I = 0, // Identity (do nothing, wait one step).
+    New = 1, // Ask for a new qubit.
+    Measure = 2, // Measure qubit.
     MeasureInplace = 3, // Measure qubit in-place.
-    Reset = 4,          // Reset qubit to |0>.
-    Send = 5,           // Send qubit to another node.
-    Recv = 6,           // Ask to receive qubit.
-    Epr = 7,            // Create EPR pair with the specified node.
-    EprRecv = 8,        // Receive EPR pair.
+    Reset = 4, // Reset qubit to |0>.
+    Send = 5, // Send qubit to another node.
+    Recv = 6, // Ask to receive qubit.
+    Epr = 7, // Create EPR pair with the specified node.
+    EprRecv = 8, // Receive EPR pair.
 
-    X = 10,    // Pauli X.
-    Z = 11,    // Pauli Z.
-    Y = 12,    // Pauli Y.
-    T = 13,    // T Gate.
+    X = 10, // Pauli X.
+    Z = 11, // Pauli Z.
+    Y = 12, // Pauli Y.
+    T = 13, // T Gate.
     RotX = 14, // Rotation over angle around X in pi/256 increments.
     RotY = 15, // Rotation over angle around Y in pi/256 increments.
     RotZ = 16, // Rotation over angle around Z in pi/256 increments.
-    H = 17,    // Hadamard Gate.
-    K = 18,    // K Gate - taking computational to Y eigenbasis.
+    H = 17, // Hadamard Gate.
+    K = 18, // K Gate - taking computational to Y eigenbasis.
 
-    Cnot = 20,   // CNOT Gate with this as control.
+    Cnot = 20, // CNOT Gate with this as control.
     Cphase = 21, // CPHASE Gate with this as control.
 }
 
@@ -510,10 +518,9 @@ impl<'de> Visitor<'de> for CmdVisitor {
         let instr = match Cmd::get_cmd(value) {
             Some(cmd) => cmd,
             None => {
-                return Err(E::custom(format!(
-                    "Invalid CQC instruction type: {}",
-                    value
-                )))
+                return Err(E::custom(
+                    format!("Invalid CQC instruction type: {}", value),
+                ))
             }
         };
 
@@ -625,57 +632,212 @@ impl<'de> Deserialize<'de> for CmdOpt {
     }
 }
 
-/// # CQC Xtra Header
+/// # CQC Sequence Header
 ///
-/// Additional header containing further information for certain commands.
+/// Additional header used to indicate size of a sequence.  Used when sending
+/// multiple commands at once.  It tells the backend how many more messages are
+/// coming.
 ///
-/// A CQC Xtra Header is required to follow the CQC Command Header for the
-/// following instructions:
+/// ```text
+///  0
+///  0 1 2 3 4 5 6 7
+/// +-+-+-+-+-+-+-+-+
+/// |   cmd_length  |
+/// +-+-+-+-+-+-+-+-+
 ///
-///  - Send qubit to another node (instr=5).
-///  - Rotations (instr=14-16).
-///  - Two qubit gates (instr=20,21).
+/// Field       Length     Meaning
+/// -----       ------     -------
+/// cmd_length  1 byte     Length (in bytes) of messages to come.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct SeqHdr {
+    pub cmd_length: u8,
+}
+
+pub const SEQUENCE_HDR_LENGTH: u32 = 1;
+
+/// # CQC Rotation Header
+///
+/// Additional header used to define the rotation angle of a rotation gate.
+///
+/// ```text
+///  0
+///  0 1 2 3 4 5 6 7
+/// +-+-+-+-+-+-+-+-+
+/// |      step     |
+/// +-+-+-+-+-+-+-+-+
+///
+/// Field       Length     Meaning
+/// -----       ------     -------
+/// step        1 byte     Angle step of rotation (increments of 1/256).
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct RotHdr {
+    pub step: u8,
+}
+
+pub const ROTATION_HDR_LENGTH: u32 = 1;
+
+/// # CQC Extra Qubit Header
+///
+/// Additional header used to send the qubit_id of a secondary qubit for two
+/// qubit gates.
+///
+/// ```text
+///  0                   1
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |            qubit_id           |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///
+/// Field          Length     Meaning
+/// -----          ------     -------
+/// qubit_id       2 bytes    ID of the target qubit.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct ExtraQubitHdr {
+    pub qubit_id: u16,
+}
+
+pub const EXTRA_QUBIT_HDR_LENGTH: u32 = 2;
+
+/// # CQC Communication Header
+///
+/// Additional header used to send to which node to send information to. Used
+/// in send and EPR commands.
+///
 ///
 /// ```text
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |         xtra_qubit_id         |         remote_app_id         |
+/// |          remote_app_id        |         remote_node
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                          remote_node                          |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                          cmd_length                           |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |          remote_port          |     steps     |     align     |
+///             remote_node         |         remote_port           |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///
 /// Field          Length     Meaning
 /// -----          ------     -------
-/// xtra_qubit_id  2 bytes    ID of the target qubit in a 2 qubit
-///                           controlled gate.
-/// remote_app_id  2 bytes    Remote Application ID.
+/// remote_app_id  2 bytes    Remote application ID.
 /// remote_node    4 bytes    IP of the remote node (IPv4).
-/// cmd_length     4 bytes    Length of the additional commands to execute upon
-///                           completion.
-/// remote_port    2 bytes    Port of the remode node for sending classical
+/// remote_port    2 bytes    Port of the remote node for sending classical
 ///                           control info.
-/// steps          1 byte     Angle step of rotation OR number of repetitions
-///                           for a repeat command.
-/// align          1 byte     4 byte alignment.
 /// ```
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct XtraHdr {
-    pub xtra_qubit_id: u16,
+pub struct CommHdr {
     pub remote_app_id: u16,
     pub remote_node: u32,
-    pub cmd_length: u32,
     pub remote_port: u16,
-    pub steps: u8,
-    pub align: u8,
 }
 
-pub const XTRA_HDR_LENGTH: u32 = 16;
+pub const COMMUNICATION_HDR_LENGTH: u32 = 8;
+
+/// # CQC Factory Header
+///
+/// Additional header used to send factory information. Factory commands are
+/// used to tell the backend to do the following command or a sequence of
+/// commands multiple times.
+///
+/// ```text
+///  0                   1
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |    num_iter   |    options    |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///
+/// Field          Length     Meaning
+/// -----          ------     -------
+/// num_iter       1 byte     Number of iterations to do the sequence.
+/// options        1 byte     Options when executing the factory.
+/// ```
+///
+/// ## Factory options
+///
+/// Factory options are set as bit flags.
+///
+/// ```text
+/// Flag     Name    Meaning
+/// ----     ----    -------
+/// 0x01     Notify  Send a notification when command completes.
+/// 0x04     Block   Block until factory is done.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct FactoryHdr {
+    pub num_iter: u8,
+    pub options: FactoryOpt,
+}
+
+pub const FACTORY_HDR_LENGTH: u32 = 2;
+
+bitflags! {
+    pub struct FactoryOpt: u8 {
+        const NOTIFY = 0x01;
+        const BLOCK = 0x04;
+    }
+}
+
+impl FactoryOpt {
+    #[inline]
+    pub fn set_notify(&mut self) -> &mut FactoryOpt {
+        self.insert(FactoryOpt::NOTIFY);
+        self
+    }
+
+    #[inline]
+    pub fn set_block(&mut self) -> &mut FactoryOpt {
+        self.insert(FactoryOpt::BLOCK);
+        self
+    }
+
+    #[inline]
+    pub fn get_notify(&self) -> bool {
+        self.contains(FactoryOpt::NOTIFY)
+    }
+
+    #[inline]
+    pub fn get_block(&self) -> bool {
+        self.contains(FactoryOpt::BLOCK)
+    }
+}
+
+impl Serialize for FactoryOpt {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(self.bits())
+    }
+}
+
+struct FactoryOptVisitor;
+
+impl<'de> Visitor<'de> for FactoryOptVisitor {
+    type Value = FactoryOpt;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("valid 8-bit CQC factory options")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<FactoryOpt, E>
+    where
+        E: de::Error,
+    {
+        Ok(FactoryOpt::from_bits_truncate(value))
+    }
+}
+
+impl<'de> Deserialize<'de> for FactoryOpt {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<FactoryOpt, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(FactoryOptVisitor)
+    }
+}
 
 /// # CQC Notify Header
 ///
@@ -708,7 +870,6 @@ pub const XTRA_HDR_LENGTH: u32 = 16;
 /// outcome        1 byte     Measurement outcome.
 /// align          1 byte     4 byte alignment.
 /// ```
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NotifyHdr {
     pub qubit_id: u16,
@@ -773,7 +934,6 @@ pub const NOTIFY_HDR_LENGTH: u32 = 20;
 /// DF         1 byte     Directionality flag (0=Mid, 1=node_A, 2=node_B).
 /// align      1 byte     4 byte alignment.
 /// ```
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct EntInfoHdr {
     pub node_a: u32,
@@ -821,17 +981,55 @@ mod tests {
     }
 
     #[test]
-    fn xtra_hdr_ser_size() {
-        let xtra_hdr = XtraHdr {
-            xtra_qubit_id: 0,
+    fn seq_hdr_ser_size() {
+        let seq_hdr = SeqHdr { cmd_length: 0 };
+        assert_eq!(
+            serialize(&seq_hdr).unwrap().len() as u32,
+            SEQUENCE_HDR_LENGTH
+        );
+    }
+
+    #[test]
+    fn rot_hdr_ser_size() {
+        let rot_hdr = RotHdr { step: 0 };
+        assert_eq!(
+            serialize(&rot_hdr).unwrap().len() as u32,
+            ROTATION_HDR_LENGTH
+        );
+    }
+
+    #[test]
+    fn extra_qubit_hdr_ser_size() {
+        let extra_qubit_hdr = ExtraQubitHdr { qubit_id: 0 };
+        assert_eq!(
+            serialize(&extra_qubit_hdr).unwrap().len() as u32,
+            EXTRA_QUBIT_HDR_LENGTH
+        );
+    }
+
+    #[test]
+    fn comm_hdr_ser_size() {
+        let comm_hdr = CommHdr {
             remote_app_id: 0,
             remote_node: 0,
-            cmd_length: 0,
             remote_port: 0,
-            steps: 0,
-            align: 0,
         };
-        assert_eq!(serialize(&xtra_hdr).unwrap().len() as u32, XTRA_HDR_LENGTH);
+        assert_eq!(
+            serialize(&comm_hdr).unwrap().len() as u32,
+            COMMUNICATION_HDR_LENGTH
+        );
+    }
+
+    #[test]
+    fn factory_hdr_ser_size() {
+        let factory_hdr = FactoryHdr {
+            num_iter: 0,
+            options: FactoryOpt::empty(),
+        };
+        assert_eq!(
+            serialize(&factory_hdr).unwrap().len() as u32,
+            FACTORY_HDR_LENGTH
+        );
     }
 
     #[test]
