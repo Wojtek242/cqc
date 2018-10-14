@@ -12,6 +12,77 @@ use std::fmt;
 use self::serde::de::Visitor;
 use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+// ----------------------------------------------------------------------------
+// Macros.
+// ----------------------------------------------------------------------------
+
+macro_rules! def_set_flag {
+    ($opt_name: ident, $flag: ident, $fn_name: ident) => {
+        #[inline]
+        pub fn $fn_name(&mut self) -> &mut $opt_name {
+            self.insert($opt_name::$flag);
+            self
+        }
+    }
+}
+
+macro_rules! def_get_flag {
+    ($opt_name: ident, $flag: ident, $fn_name: ident) => {
+        #[inline]
+        pub fn $fn_name(&self) -> bool {
+            self.contains($opt_name::$flag)
+        }
+    }
+}
+
+macro_rules! serde_option_u8 {
+    ($opt_name: ident, $visitor_name: ident, $str_name: expr) => {
+        impl Serialize for $opt_name {
+            #[inline]
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                serializer.serialize_u8(self.bits())
+            }
+        }
+
+        struct $visitor_name;
+
+        impl<'de> Visitor<'de> for $visitor_name {
+            type Value = $opt_name;
+
+            #[inline]
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(&format!("valid 8-bit CQC {} options", $str_name))
+            }
+
+            #[inline]
+            fn visit_u8<E>(self, value: u8) -> Result<$opt_name, E>
+            where
+                E: de::Error,
+            {
+                Ok($opt_name::from_bits_truncate(value))
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $opt_name {
+            #[inline]
+            fn deserialize<D>(deserializer: D) -> Result<$opt_name, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                deserializer.deserialize_u8($visitor_name)
+            }
+        }
+    }
+}
+
+/// # CQC Version
+///
+/// The current supported versions are: 1.
+/// The currently unsupported versions are: 0.
+
 pub const CQC_VERSION: u8 = 1;
 
 /// # CQC Header
@@ -109,6 +180,30 @@ pub enum Err {
     Unknown = 25, // Unknown qubit ID
 }
 
+macro_rules! def_is_tp {
+    ($tp: pat, $name: ident) => {
+        #[inline]
+        pub fn $name(&self) -> bool {
+            match self {
+                &MsgType::Tp($tp) => true,
+                _ => false,
+            }
+        }
+    }
+}
+
+macro_rules! def_is_err {
+    ($tp: pat, $name: ident) => {
+        #[inline]
+        pub fn $name(&self) -> bool {
+            match self {
+                &MsgType::Err($tp) => true,
+                _ => false,
+            }
+        }
+    }
+}
+
 impl MsgType {
     #[inline]
     pub fn is_tp(&self) -> bool {
@@ -126,141 +221,24 @@ impl MsgType {
         }
     }
 
-    #[inline]
-    pub fn is_hello(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Hello) => true,
-            _ => false,
-        }
-    }
+    def_is_tp!(Tp::Hello, is_hello);
+    def_is_tp!(Tp::Command, is_command);
+    def_is_tp!(Tp::Factory, is_factory);
+    def_is_tp!(Tp::Expire, is_expire);
+    def_is_tp!(Tp::Done, is_done);
+    def_is_tp!(Tp::Recv, is_recv);
+    def_is_tp!(Tp::EprOk, is_epr_ok);
+    def_is_tp!(Tp::MeasOut, is_measout);
+    def_is_tp!(Tp::GetTime, is_get_time);
+    def_is_tp!(Tp::InfTime, is_inf_time);
+    def_is_tp!(Tp::NewOk, is_new_ok);
 
-    #[inline]
-    pub fn is_command(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Command) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_factory(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Factory) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_expire(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Expire) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_done(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Done) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_recv(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::Recv) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_epr_ok(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::EprOk) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_measout(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::MeasOut) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_get_time(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::GetTime) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_inf_time(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::InfTime) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_new_ok(&self) -> bool {
-        match self {
-            &MsgType::Tp(Tp::NewOk) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_general(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::General) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_noqubit(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::NoQubit) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_unsupp(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::Unsupp) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_timeout(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::Timeout) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_inuse(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::InUse) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_err_unknown(&self) -> bool {
-        match self {
-            &MsgType::Err(Err::Unknown) => true,
-            _ => false,
-        }
-    }
+    def_is_err!(Err::General, is_err_general);
+    def_is_err!(Err::NoQubit, is_err_noqubit);
+    def_is_err!(Err::Unsupp, is_err_unsupp);
+    def_is_err!(Err::Timeout, is_err_timeout);
+    def_is_err!(Err::InUse, is_err_inuse);
+    def_is_err!(Err::Unknown, is_err_unknown);
 
     /// Convert an 8-bit value to a message type.  Returns `None` if the value
     /// does not correspond to a valid message type.
@@ -548,89 +526,18 @@ bitflags! {
 }
 
 impl CmdOpt {
-    #[inline]
-    pub fn set_notify(&mut self) -> &mut CmdOpt {
-        self.insert(CmdOpt::NOTIFY);
-        self
-    }
+    def_set_flag!(CmdOpt, NOTIFY, set_notify);
+    def_set_flag!(CmdOpt, ACTION, set_action);
+    def_set_flag!(CmdOpt, BLOCK, set_block);
+    def_set_flag!(CmdOpt, IFTHEN, set_ifthen);
 
-    #[inline]
-    pub fn set_action(&mut self) -> &mut CmdOpt {
-        self.insert(CmdOpt::ACTION);
-        self
-    }
-
-    #[inline]
-    pub fn set_block(&mut self) -> &mut CmdOpt {
-        self.insert(CmdOpt::BLOCK);
-        self
-    }
-
-    #[inline]
-    pub fn set_ifthen(&mut self) -> &mut CmdOpt {
-        self.insert(CmdOpt::IFTHEN);
-        self
-    }
-
-    #[inline]
-    pub fn get_notify(&self) -> bool {
-        self.contains(CmdOpt::NOTIFY)
-    }
-
-    #[inline]
-    pub fn get_action(&self) -> bool {
-        self.contains(CmdOpt::ACTION)
-    }
-
-    #[inline]
-    pub fn get_block(&self) -> bool {
-        self.contains(CmdOpt::BLOCK)
-    }
-
-    #[inline]
-    pub fn get_ifthen(&self) -> bool {
-        self.contains(CmdOpt::IFTHEN)
-    }
+    def_get_flag!(CmdOpt, NOTIFY, get_notify);
+    def_get_flag!(CmdOpt, ACTION, get_action);
+    def_get_flag!(CmdOpt, BLOCK, get_block);
+    def_get_flag!(CmdOpt, IFTHEN, get_ifthen);
 }
 
-impl Serialize for CmdOpt {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u8(self.bits())
-    }
-}
-
-struct CmdOptVisitor;
-
-impl<'de> Visitor<'de> for CmdOptVisitor {
-    type Value = CmdOpt;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("valid 8-bit CQC command options")
-    }
-
-    #[inline]
-    fn visit_u8<E>(self, value: u8) -> Result<CmdOpt, E>
-    where
-        E: de::Error,
-    {
-        Ok(CmdOpt::from_bits_truncate(value))
-    }
-}
-
-impl<'de> Deserialize<'de> for CmdOpt {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<CmdOpt, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u8(CmdOptVisitor)
-    }
-}
+serde_option_u8!(CmdOpt, CmdOptVisitor, "command");
 
 /// # CQC Sequence Header
 ///
@@ -695,11 +602,11 @@ pub const ROTATION_HDR_LENGTH: u32 = 1;
 /// qubit_id       2 bytes    ID of the target qubit.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct ExtraQubitHdr {
+pub struct QubitHdr {
     pub qubit_id: u16,
 }
 
-pub const EXTRA_QUBIT_HDR_LENGTH: u32 = 2;
+pub const QUBIT_HDR_LENGTH: u32 = 2;
 
 /// # CQC Communication Header
 ///
@@ -777,67 +684,14 @@ bitflags! {
 }
 
 impl FactoryOpt {
-    #[inline]
-    pub fn set_notify(&mut self) -> &mut FactoryOpt {
-        self.insert(FactoryOpt::NOTIFY);
-        self
-    }
+    def_set_flag!(FactoryOpt, NOTIFY, set_notify);
+    def_set_flag!(FactoryOpt, BLOCK, set_block);
 
-    #[inline]
-    pub fn set_block(&mut self) -> &mut FactoryOpt {
-        self.insert(FactoryOpt::BLOCK);
-        self
-    }
-
-    #[inline]
-    pub fn get_notify(&self) -> bool {
-        self.contains(FactoryOpt::NOTIFY)
-    }
-
-    #[inline]
-    pub fn get_block(&self) -> bool {
-        self.contains(FactoryOpt::BLOCK)
-    }
+    def_get_flag!(FactoryOpt, NOTIFY, get_notify);
+    def_get_flag!(FactoryOpt, BLOCK, get_block);
 }
 
-impl Serialize for FactoryOpt {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u8(self.bits())
-    }
-}
-
-struct FactoryOptVisitor;
-
-impl<'de> Visitor<'de> for FactoryOptVisitor {
-    type Value = FactoryOpt;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("valid 8-bit CQC factory options")
-    }
-
-    #[inline]
-    fn visit_u8<E>(self, value: u8) -> Result<FactoryOpt, E>
-    where
-        E: de::Error,
-    {
-        Ok(FactoryOpt::from_bits_truncate(value))
-    }
-}
-
-impl<'de> Deserialize<'de> for FactoryOpt {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<FactoryOpt, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u8(FactoryOptVisitor)
-    }
-}
+serde_option_u8!(FactoryOpt, FactoryOptVisitor, "command");
 
 /// # CQC Notify Header
 ///
@@ -952,6 +806,18 @@ pub struct EntInfoHdr {
 
 pub const ENT_INFO_HDR_LENGTH: u32 = 40;
 
+// ----------------------------------------------------------------------------
+// Combine options into an enum.
+// ----------------------------------------------------------------------------
+pub enum Opts {
+    Cmd(CmdOpt),
+    Factory(FactoryOpt),
+}
+
+// ----------------------------------------------------------------------------
+// Tests.
+// ----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     extern crate bincode;
@@ -999,11 +865,11 @@ mod tests {
     }
 
     #[test]
-    fn extra_qubit_hdr_ser_size() {
-        let extra_qubit_hdr = ExtraQubitHdr { qubit_id: 0 };
+    fn qubit_hdr_ser_size() {
+        let qubit_hdr = QubitHdr { qubit_id: 0 };
         assert_eq!(
-            serialize(&extra_qubit_hdr).unwrap().len() as u32,
-            EXTRA_QUBIT_HDR_LENGTH
+            serialize(&qubit_hdr).unwrap().len() as u32,
+            QUBIT_HDR_LENGTH
         );
     }
 

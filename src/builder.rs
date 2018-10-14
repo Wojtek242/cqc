@@ -8,7 +8,7 @@
 //! Currently only client-to-server packets are supported.
 
 use hdr::*;
-use {ReqCmd, Request};
+use {ReqCmd, Request, XtraHdr};
 
 /// Struct containing all the necessary bits of information to identify a
 /// remote instance of the CQC backend.
@@ -164,51 +164,34 @@ impl Request {
 
     /// Append a Command Header request.
     fn append_req_cmd(&mut self, req_cmd: ReqCmd) {
-        self.cqc_hdr.length = CMD_HDR_LENGTH + if req_cmd.xtra_hdr.is_some() {
-            XTRA_HDR_LENGTH
-        } else {
-            0
-        };
+        self.cqc_hdr.length = CMD_HDR_LENGTH +
+            match req_cmd.xtra_hdr {
+                Some(XtraHdr::Rot(_)) => ROTATION_HDR_LENGTH,
+                Some(XtraHdr::Qubit(_)) => QUBIT_HDR_LENGTH,
+                Some(XtraHdr::Comm(_)) => COMMUNICATION_HDR_LENGTH,
+                Some(XtraHdr::Factory(_)) => FACTORY_HDR_LENGTH,
+                None => 0,
+            };
 
         self.req_cmd = Some(req_cmd);
     }
 
     /// Build an Xtra Header that specifies a remote node.
     fn xtra_remote_node(remote_id: RemoteId) -> XtraHdr {
-        XtraHdr {
-            xtra_qubit_id: 0,
+        XtraHdr::Comm(CommHdr {
             remote_app_id: remote_id.remote_app_id,
             remote_node: remote_id.remote_node,
-            cmd_length: 0,
             remote_port: remote_id.remote_port,
-            steps: 0,
-            align: 0,
-        }
+        })
     }
 
     /// Build an Xtra Header that specifies a rotation angle in pi/256 increments.
-    fn xtra_rotation_angle(steps: u8) -> XtraHdr {
-        XtraHdr {
-            xtra_qubit_id: 0,
-            remote_app_id: 0,
-            remote_node: 0,
-            cmd_length: 0,
-            remote_port: 0,
-            steps,
-            align: 0,
-        }
+    fn xtra_rotation_angle(step: u8) -> XtraHdr {
+        XtraHdr::Rot(RotHdr { step })
     }
 
     /// Build an Xtra Header that specifies a target qubit.
-    fn xtra_target_qubit(xtra_qubit_id: u16) -> XtraHdr {
-        XtraHdr {
-            xtra_qubit_id,
-            remote_app_id: 0,
-            remote_node: 0,
-            cmd_length: 0,
-            remote_port: 0,
-            steps: 0,
-            align: 0,
-        }
+    fn xtra_target_qubit(qubit_id: u16) -> XtraHdr {
+        XtraHdr::Qubit(QubitHdr { qubit_id })
     }
 }
