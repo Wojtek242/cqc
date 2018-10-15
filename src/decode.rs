@@ -329,7 +329,7 @@ mod tests {
     // Decode a response packet that only has an invalid CQC version.  This
     // should return an error (and thus panic on an unwrap).
     #[test]
-    #[should_panic(expected = "Unsupported CQC version")]
+    #[should_panic(expected = "Invalid CQC version")]
     fn invalid_version_decode() {
         let cqc_type = Tp::NewOk;
         let length: u32 = 0;

@@ -94,11 +94,73 @@ macro_rules! serde_option_u8 {
     }
 }
 
+macro_rules! serialize_enum_u8 {
+    ($enum_name: ident) => {
+        impl Serialize for $enum_name {
+            #[inline]
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                serializer.serialize_u8(*self as u8)
+            }
+        }
+    }
+}
+
+macro_rules! deserialize_enum_u8 {
+    ($enum_name: ident, $visitor_name: ident, $str_name: expr) => {
+        struct $visitor_name;
+
+        impl<'de> Visitor<'de> for $visitor_name {
+            type Value = $enum_name;
+
+            #[inline]
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(&format!("a valid {}", $str_name))
+            }
+
+            #[inline]
+            fn visit_u8<E>(self, value: u8) -> Result<$enum_name, E>
+            where
+                E: de::Error,
+            {
+                let instr = match $enum_name::get(value) {
+                    Some(x) => x,
+                    None => {
+                        return Err(E::custom(
+                            format!("Invalid {}: {}", $str_name, value),
+                        ))
+                    }
+                };
+
+                Ok(instr)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $enum_name {
+            #[inline]
+            fn deserialize<D>(deserializer: D) -> Result<$enum_name, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                deserializer.deserialize_u8($visitor_name)
+            }
+        }
+    }
+}
+
+macro_rules! serde_enum_u8 {
+    ($enum_name: ident, $visitor_name: ident, $str_name: expr) => {
+        serialize_enum_u8!($enum_name);
+        deserialize_enum_u8!($enum_name, $visitor_name, $str_name);
+    }
+}
+
 /// # CQC Version
 ///
 /// The current supported versions are: 1.
 /// The currently unsupported versions are: 0.
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Version {
@@ -109,7 +171,7 @@ impl Version {
     /// Convert an 8-bit value to a version value.  Returns `None` if the value
     /// does not correspond to a currently supported version.
     #[inline]
-    pub fn get_version(value: u8) -> Option<Version> {
+    pub fn get(value: u8) -> Option<Version> {
         let version = match value {
             1 => Version::V1,
             _ => return None,
@@ -119,53 +181,11 @@ impl Version {
     }
 }
 
-impl Serialize for Version {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u8(*self as u8)
-    }
-}
-
-struct VersionVisitor;
-
-impl<'de> Visitor<'de> for VersionVisitor {
-    type Value = Version;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("version 1")
-    }
-
-    #[inline]
-    fn visit_u8<E>(self, value: u8) -> Result<Version, E>
-    where
-        E: de::Error,
-    {
-        let instr = match Version::get_version(value) {
-            Some(ver) => ver,
-            None => {
-                return Err(E::custom(
-                    format!("Unsupported CQC version: {}", value),
-                ))
-            }
-        };
-
-        Ok(instr)
-    }
-}
-
-impl<'de> Deserialize<'de> for Version {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<Version, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u8(VersionVisitor)
-    }
-}
+serde_enum_u8!(
+    Version,
+    VersionVisitor,
+    "CQC version"
+);
 
 /// # CQC Header
 ///
@@ -325,7 +345,7 @@ impl MsgType {
     /// Convert an 8-bit value to a message type.  Returns `None` if the value
     /// does not correspond to a valid message type.
     #[inline]
-    pub fn get_msg_type(value: u8) -> Option<MsgType> {
+    pub fn get(value: u8) -> Option<MsgType> {
         let msg_type = match value {
             0 => MsgType::Tp(Tp::Hello),
             1 => MsgType::Tp(Tp::Command),
@@ -366,39 +386,11 @@ impl Serialize for MsgType {
     }
 }
 
-struct MsgTypeVisitor;
-
-impl<'de> Visitor<'de> for MsgTypeVisitor {
-    type Value = MsgType;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid 8-bit CQC message type")
-    }
-
-    #[inline]
-    fn visit_u8<E>(self, value: u8) -> Result<MsgType, E>
-    where
-        E: de::Error,
-    {
-        let msg_type = match MsgType::get_msg_type(value) {
-            Some(msg_type) => msg_type,
-            None => return Err(E::custom(format!("Invalid CQC message type: {}", value))),
-        };
-
-        Ok(msg_type)
-    }
-}
-
-impl<'de> Deserialize<'de> for MsgType {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<MsgType, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u8(MsgTypeVisitor)
-    }
-}
+deserialize_enum_u8!(
+    MsgType,
+    MsgTypeVisitor,
+    "CQC message type"
+);
 
 /// # CQC Command Header
 ///
@@ -518,7 +510,7 @@ impl Cmd {
     /// Convert an 8-bit value to a command type.  Returns `None` if the value
     /// does not correspond to a valid command type.
     #[inline]
-    pub fn get_cmd(value: u8) -> Option<Cmd> {
+    pub fn get(value: u8) -> Option<Cmd> {
         let command = match value {
             0 => Cmd::I,
             1 => Cmd::New,
@@ -550,53 +542,11 @@ impl Cmd {
     }
 }
 
-impl Serialize for Cmd {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u8(*self as u8)
-    }
-}
-
-struct CmdVisitor;
-
-impl<'de> Visitor<'de> for CmdVisitor {
-    type Value = Cmd;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid 8-bit CQC instruction type")
-    }
-
-    #[inline]
-    fn visit_u8<E>(self, value: u8) -> Result<Cmd, E>
-    where
-        E: de::Error,
-    {
-        let instr = match Cmd::get_cmd(value) {
-            Some(cmd) => cmd,
-            None => {
-                return Err(E::custom(
-                    format!("Invalid CQC instruction type: {}", value),
-                ))
-            }
-        };
-
-        Ok(instr)
-    }
-}
-
-impl<'de> Deserialize<'de> for Cmd {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<Cmd, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u8(CmdVisitor)
-    }
-}
+serde_enum_u8!(
+    Cmd,
+    CmdVisitor,
+    "CQC instruction type"
+);
 
 bitflags! {
     pub struct CmdOpt: u8 {
@@ -773,7 +723,7 @@ impl FactoryOpt {
     def_get_flag!(FactoryOpt, BLOCK, get_block);
 }
 
-serde_option_u8!(FactoryOpt, FactoryOptVisitor, "command");
+serde_option_u8!(FactoryOpt, FactoryOptVisitor, "factory");
 
 /// # CQC Notify Header
 ///
@@ -931,28 +881,19 @@ mod tests {
     #[test]
     fn seq_hdr_ser_size() {
         let seq_hdr = SeqHdr { cmd_length: 0 };
-        assert_eq!(
-            serialize(&seq_hdr).unwrap().len() as u32,
-            seq_hdr.len()
-        );
+        assert_eq!(serialize(&seq_hdr).unwrap().len() as u32, seq_hdr.len());
     }
 
     #[test]
     fn rot_hdr_ser_size() {
         let rot_hdr = RotHdr { step: 0 };
-        assert_eq!(
-            serialize(&rot_hdr).unwrap().len() as u32,
-            rot_hdr.len()
-        );
+        assert_eq!(serialize(&rot_hdr).unwrap().len() as u32, rot_hdr.len());
     }
 
     #[test]
     fn qubit_hdr_ser_size() {
         let qubit_hdr = QubitHdr { qubit_id: 0 };
-        assert_eq!(
-            serialize(&qubit_hdr).unwrap().len() as u32,
-            qubit_hdr.len()
-        );
+        assert_eq!(serialize(&qubit_hdr).unwrap().len() as u32, qubit_hdr.len());
     }
 
     #[test]
@@ -962,10 +903,7 @@ mod tests {
             remote_node: 0,
             remote_port: 0,
         };
-        assert_eq!(
-            serialize(&comm_hdr).unwrap().len() as u32,
-            comm_hdr.len()
-        );
+        assert_eq!(serialize(&comm_hdr).unwrap().len() as u32, comm_hdr.len());
     }
 
     #[test]
