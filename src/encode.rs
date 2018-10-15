@@ -72,7 +72,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -90,7 +90,7 @@ mod tests {
 
         // Big-endian
         let expected: Vec<u8> = vec![
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -114,7 +114,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -149,7 +149,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -178,7 +178,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -216,7 +216,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -247,7 +247,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -285,7 +285,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -317,7 +317,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -359,7 +359,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -394,7 +394,7 @@ mod tests {
     fn cqc_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: 0,
+            version: Version::V1,
             msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
@@ -422,7 +422,7 @@ mod tests {
     fn cmd_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: 0,
+            version: Version::V1,
             msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
@@ -461,7 +461,7 @@ mod tests {
     fn buf_too_large() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: 0,
+            version: Version::V1,
             msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
@@ -480,7 +480,7 @@ mod tests {
 
         // Big-endian
         let expected: Vec<u8> = vec![
-            0x00,
+            Version::V1 as u8,
             0x00,
             0x00,
             0x00,

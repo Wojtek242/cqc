@@ -84,7 +84,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -98,7 +98,7 @@ mod tests {
 
         // Big-endian
         let packet: Vec<u8> = vec![
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -122,7 +122,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -148,7 +148,7 @@ mod tests {
         // Big-endian
         let packet: Vec<u8> = vec![
             // CQC header.
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -193,7 +193,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -224,7 +224,7 @@ mod tests {
         // Big-endian
         let packet: Vec<u8> = vec![
             // CQC header.
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -291,7 +291,7 @@ mod tests {
 
         let packet: Vec<u8> = vec![
             // CQC header.
-            CQC_VERSION,
+            Version::V1 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -326,6 +326,29 @@ mod tests {
         decoder.decode(&packet[..]).unwrap();
     }
 
+    // Decode a response packet that only has an invalid CQC version.  This
+    // should return an error (and thus panic on an unwrap).
+    #[test]
+    #[should_panic(expected = "Unsupported CQC version")]
+    fn invalid_version_decode() {
+        let cqc_type = Tp::NewOk;
+        let length: u32 = 0;
+
+        let packet: Vec<u8> = vec![
+            Version::V1 as u8 + 1,
+            cqc_type as u8,
+            get_byte_16!(APP_ID, 1),
+            get_byte_16!(APP_ID, 0),
+            get_byte_32!(length, 3),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 0),
+        ];
+
+        let decoder = Decoder::new();
+        decoder.decode(&packet[..]).unwrap();
+    }
+
     // Decode a response packet that only has an invalid message type.  This
     // should return an error (and thus panic on an unwrap).
     #[test]
@@ -334,7 +357,7 @@ mod tests {
         let length: u32 = 0;
 
         let packet: Vec<u8> = vec![
-            CQC_VERSION,
+            Version::V1 as u8,
             0xFF,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),

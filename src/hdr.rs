@@ -99,7 +99,73 @@ macro_rules! serde_option_u8 {
 /// The current supported versions are: 1.
 /// The currently unsupported versions are: 0.
 
-pub const CQC_VERSION: u8 = 1;
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Version {
+    V1 = 1,
+}
+
+impl Version {
+    /// Convert an 8-bit value to a version value.  Returns `None` if the value
+    /// does not correspond to a currently supported version.
+    #[inline]
+    pub fn get_version(value: u8) -> Option<Version> {
+        let version = match value {
+            1 => Version::V1,
+            _ => return None,
+        };
+
+        Some(version)
+    }
+}
+
+impl Serialize for Version {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+struct VersionVisitor;
+
+impl<'de> Visitor<'de> for VersionVisitor {
+    type Value = Version;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("version 1")
+    }
+
+    #[inline]
+    fn visit_u8<E>(self, value: u8) -> Result<Version, E>
+    where
+        E: de::Error,
+    {
+        let instr = match Version::get_version(value) {
+            Some(ver) => ver,
+            None => {
+                return Err(E::custom(
+                    format!("Unsupported CQC version: {}", value),
+                ))
+            }
+        };
+
+        Ok(instr)
+    }
+}
+
+impl<'de> Deserialize<'de> for Version {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Version, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u8(VersionVisitor)
+    }
+}
 
 /// # CQC Header
 ///
@@ -155,7 +221,7 @@ pub const CQC_VERSION: u8 = 1;
 ///  - GetTime
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CqcHdr {
-    pub version: u8,
+    pub version: Version,
     pub msg_type: MsgType,
     pub app_id: u16,
     pub length: u32,
@@ -844,7 +910,7 @@ mod tests {
     #[test]
     fn cqc_hdr_ser_size() {
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,

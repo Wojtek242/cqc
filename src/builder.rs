@@ -23,7 +23,7 @@ impl Request {
     /// Build a CQC header
     fn build_cqc_hdr(app_id: u16, msg_type: MsgType) -> Request {
         let cqc_hdr = CqcHdr {
-            version: CQC_VERSION,
+            version: Version::V1,
             msg_type: msg_type,
             app_id: app_id,
             length: 0,
