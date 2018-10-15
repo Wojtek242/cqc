@@ -25,7 +25,11 @@ pub mod decode;
 
 use hdr::*;
 
-use serde::{Serialize, Serializer};
+use self::serde::de;
+use std::fmt;
+
+use self::serde::de::{SeqAccess, Visitor};
+use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
 // ----------------------------------------------------------------------------
@@ -214,5 +218,81 @@ impl RspNotify {
             &RspNotify::None => true,
             _ => false,
         }
+    }
+}
+
+struct ResponseVisitor;
+
+impl<'de> Visitor<'de> for ResponseVisitor {
+    type Value = Response;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid CQC response packet")
+    }
+
+    #[inline]
+    fn visit_seq<V>(self, mut seq: V) -> Result<Response, V::Error>
+    where
+        V: SeqAccess<'de>,
+    {
+        let cqc_hdr: CqcHdr = seq.next_element()?.ok_or_else(
+            || de::Error::invalid_length(0, &self),
+        )?;
+
+        if cqc_hdr.length == 0 {
+            return Ok(Response {
+                cqc_hdr,
+                notify: RspNotify::None,
+            });
+        }
+
+        let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
+        let notify = match msg_type {
+            MsgType::Tp(Tp::Recv) |
+            MsgType::Tp(Tp::MeasOut) |
+            MsgType::Tp(Tp::NewOk) => {
+                if length < NotifyHdr::hdr_len() {
+                    return Err(de::Error::invalid_value(
+                        de::Unexpected::Other(
+                            "Response length insufficient to hold a Notify Header",
+                        ),
+                        &self,
+                    ));
+                }
+                let notify_hdr: NotifyHdr = seq.next_element()?.ok_or_else(|| {
+                    de::Error::invalid_length(1, &self)
+                })?;
+                RspNotify::Notify(notify_hdr)
+            }
+            MsgType::Tp(Tp::EprOk) => {
+                if length < EntInfoHdr::hdr_len() {
+                    return Err(de::Error::invalid_value(
+                        de::Unexpected::Other(
+                            "Response length insufficient to hold an Entanglement Info Header",
+                        ),
+                        &self,
+                    ));
+                }
+                let ent_info_hdr: EntInfoHdr = seq.next_element()?.ok_or_else(|| {
+                    de::Error::invalid_length(1, &self)
+                })?;
+                RspNotify::EntInfo(ent_info_hdr)
+            }
+            _ => RspNotify::None,
+        };
+
+        Ok(Response { cqc_hdr, notify })
+    }
+}
+
+impl<'de> Deserialize<'de> for Response {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Response, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        const FIELDS: &'static [&'static str] = &["cqc_hdr", "notify"];
+        deserializer.deserialize_struct("Response", FIELDS, ResponseVisitor)
     }
 }
