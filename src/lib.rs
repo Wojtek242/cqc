@@ -110,21 +110,6 @@ impl ReqCmd {
     }
 }
 
-impl Serialize for ReqCmd {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
-        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
-        if self.xtra_hdr.is_some() {
-            s.serialize_field("xtra_hdr", &self.xtra_hdr)?;
-        }
-        s.end()
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum XtraHdr {
     Rot(RotHdr),
@@ -166,18 +151,23 @@ impl XtraHdr {
     }
 }
 
-impl Serialize for XtraHdr {
+impl Serialize for ReqCmd {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match *self {
-            XtraHdr::Rot(ref h) => h.serialize(serializer),
-            XtraHdr::Qubit(ref h) => h.serialize(serializer),
-            XtraHdr::Comm(ref h) => h.serialize(serializer),
-            XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
+        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
+        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
+        if self.xtra_hdr.is_some() {
+            match self.xtra_hdr {
+                XtraHdr::Rot(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::Qubit(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::Comm(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
+            };
         }
+        s.end()
     }
 }
 
