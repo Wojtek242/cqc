@@ -17,19 +17,19 @@ extern crate bitflags;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate bincode;
 
 pub mod hdr;
 pub mod builder;
-pub mod encode;
-pub mod decode;
 
 use hdr::*;
 
 use self::serde::de;
 use std::fmt;
 
-use self::serde::de::{SeqAccess, Visitor};
-use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::error::Error;
+use serde::de::{SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
 // ----------------------------------------------------------------------------
@@ -301,5 +301,66 @@ impl<'de> Deserialize<'de> for Response {
     {
         const FIELDS: &'static [&'static str] = &["cqc_hdr", "notify"];
         deserializer.deserialize_struct("Response", FIELDS, ResponseVisitor)
+    }
+}
+
+/// # Packet encoder.
+///
+/// A basic packet encoder
+pub struct Encoder {
+    config: bincode::Config,
+}
+
+impl Encoder {
+    /// Create a big endian `Encoder`.
+    pub fn new() -> Encoder {
+        let mut config = bincode::config();
+        config.big_endian();
+
+        Encoder { config }
+    }
+
+    /// Encode a CQC request packet into buffer of bytes.  The return value is
+    /// a the number of bytes written.
+    ///
+    /// If the provided buffer is not large enough to encode the request
+    /// `encode_request` will panic.
+    pub fn encode_request<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
+        let len = request.len() as usize;
+        assert!(buffer.len() >= len);
+        self.config
+            .serialize_into(&mut buffer[..len], &request)
+            .unwrap();
+
+        len
+    }
+}
+
+/// # Packet decoder.
+///
+/// A basic packet decoder.
+pub struct Decoder {
+    config: bincode::Config,
+}
+
+impl Decoder {
+    /// Create a big endian `Decoder`.
+    pub fn new() -> Decoder {
+        let mut config = bincode::config();
+        config.big_endian();
+
+        Decoder { config }
+    }
+
+    /// Decode supplied data.
+    ///
+    /// Returns a Result which contains either the Response or an error.
+    pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<Error>> {
+        let response: Response = match self.config.deserialize_from(buffer) {
+            Ok(result) => result,
+            Err(e) => return Err(e),
+        };
+
+        Ok(response)
     }
 }

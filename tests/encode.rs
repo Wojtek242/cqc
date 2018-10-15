@@ -1,46 +1,9 @@
-//! # CQC Encoder
-//!
-//! This module provides the encoder for the CQC protocol.  The encoder does
-//! not check for protocol correctness.
-
-extern crate bincode;
-
-use Request;
-
-pub struct Encoder {
-    config: bincode::Config,
-}
-
-impl Encoder {
-    /// Create a big endian `Encoder`.
-    pub fn new() -> Encoder {
-        let mut config = bincode::config();
-        config.big_endian();
-
-        Encoder { config }
-    }
-
-    /// Encode a CQC request packet into buffer of bytes.  The return value is
-    /// a the number of bytes written.
-    ///
-    /// If the provided buffer is not large enough to encode the request
-    /// `encode_request` will panic.
-    pub fn encode_request<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
-        let len = request.len() as usize;
-        assert!(buffer.len() >= len);
-        self.config
-            .serialize_into(&mut buffer[..len], &request)
-            .unwrap();
-
-        len
-    }
-}
+extern crate cqc;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use {ReqCmd, Request, XtraHdr};
-    use hdr::*;
+    use cqc::{Encoder, ReqCmd, Request, XtraHdr};
+    use cqc::hdr::*;
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {

@@ -1,45 +1,9 @@
-//! # CQC Decoder
-//!
-//! This module provides the decoder for the CQC protocol.
+extern crate cqc;
 
-extern crate bincode;
-
-use std::error::Error;
-use Response;
-
-/// Packet decoder.
-///
-/// Note that currently only the decoding of complete packets is supported.
-pub struct Decoder {
-    config: bincode::Config,
-}
-
-impl Decoder {
-    /// Create a big endian `Decoder`.
-    pub fn new() -> Decoder {
-        let mut config = bincode::config();
-        config.big_endian();
-
-        Decoder { config }
-    }
-
-    /// Decode supplied data.
-    ///
-    /// Returns a Result which contains either the Response or an error.
-    pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<Error>> {
-        let response: Response = match self.config.deserialize_from(buffer) {
-            Ok(result) => result,
-            Err(e) => return Err(e),
-        };
-
-        Ok(response)
-    }
-}
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use hdr::*;
-    use RspInfo;
+    use cqc::hdr::*;
+    use cqc::{Decoder, Response, RspInfo};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
