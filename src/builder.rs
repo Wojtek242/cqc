@@ -160,7 +160,7 @@ impl Request {
 
     /// Append a Command Header request.
     fn append_req_cmd(&mut self, req_cmd: ReqCmd) {
-        self.cqc_hdr.length = CMD_HDR_LENGTH + req_cmd.xtra_hdr.len();
+        self.cqc_hdr.length = CmdHdr::hdr_len() + req_cmd.xtra_hdr.len();
         self.req_cmd = Some(req_cmd);
     }
 

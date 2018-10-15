@@ -12,150 +12,8 @@ use std::fmt;
 use self::serde::de::Visitor;
 use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// ----------------------------------------------------------------------------
-// Macros.
-// ----------------------------------------------------------------------------
-
-macro_rules! def_len {
-    ($hdr_name: ident, $name: ident, $value: expr) => {
-        impl $hdr_name {
-            #[inline]
-            pub fn hdr_len() -> u32 {
-                $name
-            }
-            #[inline]
-            pub fn len(&self) -> u32 {
-                $name
-            }
-        }
-        pub const $name: u32 = $value;
-    }
-}
-
-macro_rules! def_set_flag {
-    ($opt_name: ident, $flag: ident, $fn_name: ident) => {
-        #[inline]
-        pub fn $fn_name(&mut self) -> &mut $opt_name {
-            self.insert($opt_name::$flag);
-            self
-        }
-    }
-}
-
-macro_rules! def_get_flag {
-    ($opt_name: ident, $flag: ident, $fn_name: ident) => {
-        #[inline]
-        pub fn $fn_name(&self) -> bool {
-            self.contains($opt_name::$flag)
-        }
-    }
-}
-
-macro_rules! serde_option_u8 {
-    ($opt_name: ident, $visitor_name: ident, $str_name: expr) => {
-        impl Serialize for $opt_name {
-            #[inline]
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                serializer.serialize_u8(self.bits())
-            }
-        }
-
-        struct $visitor_name;
-
-        impl<'de> Visitor<'de> for $visitor_name {
-            type Value = $opt_name;
-
-            #[inline]
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(&format!("valid 8-bit CQC {} options", $str_name))
-            }
-
-            #[inline]
-            fn visit_u8<E>(self, value: u8) -> Result<$opt_name, E>
-            where
-                E: de::Error,
-            {
-                Ok($opt_name::from_bits_truncate(value))
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $opt_name {
-            #[inline]
-            fn deserialize<D>(deserializer: D) -> Result<$opt_name, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                deserializer.deserialize_u8($visitor_name)
-            }
-        }
-    }
-}
-
-macro_rules! serialize_enum_u8 {
-    ($enum_name: ident) => {
-        impl Serialize for $enum_name {
-            #[inline]
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                serializer.serialize_u8(*self as u8)
-            }
-        }
-    }
-}
-
-macro_rules! deserialize_enum_u8 {
-    ($enum_name: ident, $visitor_name: ident, $str_name: expr) => {
-        struct $visitor_name;
-
-        impl<'de> Visitor<'de> for $visitor_name {
-            type Value = $enum_name;
-
-            #[inline]
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(&format!("a valid {}", $str_name))
-            }
-
-            #[inline]
-            fn visit_u8<E>(self, value: u8) -> Result<$enum_name, E>
-            where
-                E: de::Error,
-            {
-                let instr = match $enum_name::get(value) {
-                    Some(x) => x,
-                    None => {
-                        return Err(E::custom(
-                            format!("Invalid {}: {}", $str_name, value),
-                        ))
-                    }
-                };
-
-                Ok(instr)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $enum_name {
-            #[inline]
-            fn deserialize<D>(deserializer: D) -> Result<$enum_name, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                deserializer.deserialize_u8($visitor_name)
-            }
-        }
-    }
-}
-
-macro_rules! serde_enum_u8 {
-    ($enum_name: ident, $visitor_name: ident, $str_name: expr) => {
-        serialize_enum_u8!($enum_name);
-        deserialize_enum_u8!($enum_name, $visitor_name, $str_name);
-    }
-}
+#[macro_use]
+mod macros;
 
 /// # CQC Version
 ///
@@ -181,11 +39,7 @@ impl Version {
     }
 }
 
-serde_enum_u8!(
-    Version,
-    VersionVisitor,
-    "CQC version"
-);
+serde_enum_u8!(Version, VersionVisitor, "CQC version");
 
 /// # CQC Header
 ///
@@ -209,7 +63,25 @@ serde_enum_u8!(
 /// length    4 bytes    Total length of the CQC instruction packet.
 /// ```
 ///
-/// ## Possible Message Types
+/// A CQC Command Header MUST follow the CQC Header for the following messages:
+///
+///  - Command
+///  - Factory
+///  - GetTime
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct CqcHdr {
+    pub version: Version,
+    pub msg_type: MsgType,
+    pub app_id: u16,
+    pub length: u32,
+}
+
+def_len!(CqcHdr, 8);
+
+/// # CQC Header Message Types
+///
+/// The supported message types.  They are split into normal types (Tp) and
+/// error types (Err).
 ///
 /// ```text
 /// Type     Name       Meaning
@@ -233,53 +105,10 @@ serde_enum_u8!(
 ///  24      InUse      Qubit already in use.
 ///  25      Unknown    Unknown qubit ID.
 /// ```
-///
-/// A CQC Command Header MUST follow the CQC Header for the following messages:
-///
-///  - Command
-///  - Factory
-///  - GetTime
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct CqcHdr {
-    pub version: Version,
-    pub msg_type: MsgType,
-    pub app_id: u16,
-    pub length: u32,
-}
-
-def_len!(CqcHdr, CQC_HDR_LENGTH, 8);
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
     Tp(Tp),
     Err(Err),
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Tp {
-    Hello = 0, // Alive check.
-    Command = 1, // Execute a command list.
-    Factory = 2, // Start executing command list repeatedly.
-    Expire = 3, // Qubit has expired.
-    Done = 4, // Command execution done.
-    Recv = 5, // Recevied qubit.
-    EprOk = 6, // Created EPR pair.
-    MeasOut = 7, // Measurement outcome.
-    GetTime = 8, // Get creation time of qubit.
-    InfTime = 9, // Inform about time.
-    NewOk = 10, // Created new qubit.
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Err {
-    General = 20, // General purpose error (no details.
-    NoQubit = 21, // No more qubits available.
-    Unsupp = 22, // Command sequence not supported.
-    Timeout = 23, // Timeout.
-    InUse = 24, // Qubit already in use.
-    Unknown = 25, // Unknown qubit ID
 }
 
 macro_rules! def_is_tp {
@@ -386,11 +215,67 @@ impl Serialize for MsgType {
     }
 }
 
-deserialize_enum_u8!(
-    MsgType,
-    MsgTypeVisitor,
-    "CQC message type"
-);
+deserialize_enum_u8!(MsgType, MsgTypeVisitor, "CQC message type");
+
+/// # CQC Header Normal Message Types
+///
+/// The supported normal message types.
+///
+/// ```text
+/// Type     Name       Meaning
+/// ----     ----       -------
+///  0       Hello      Alive check.
+///  1       Command    Execute a command list.
+///  2       Factory    Start executing command list repeatedly.
+///  3       Expire     Qubit has expired.
+///  4       Done       Command execution done.
+///  5       Recv       Received qubit.
+///  6       EprOk      Created EPR pair.
+///  7       MeasOut    Measurement outcome.
+///  8       GetTime    Get creation time of qubit.
+///  9       InfTime    Inform about time.
+///  10      NewOk      Created new qubit.
+/// ```
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Tp {
+    Hello = 0, // Alive check.
+    Command = 1, // Execute a command list.
+    Factory = 2, // Start executing command list repeatedly.
+    Expire = 3, // Qubit has expired.
+    Done = 4, // Command execution done.
+    Recv = 5, // Recevied qubit.
+    EprOk = 6, // Created EPR pair.
+    MeasOut = 7, // Measurement outcome.
+    GetTime = 8, // Get creation time of qubit.
+    InfTime = 9, // Inform about time.
+    NewOk = 10, // Created new qubit.
+}
+
+/// # CQC Header Error Message Types
+///
+/// The supported error message types.
+///
+/// ```text
+/// Type     Name       Meaning
+/// ----     ----       -------
+///  20      General    General purpose error (no details).
+///  21      NoQubit    No more qubits available.
+///  22      Unsupp     Command sequence not supported.
+///  23      Timeout    Timeout.
+///  24      InUse      Qubit already in use.
+///  25      Unknown    Unknown qubit ID.
+/// ```
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Err {
+    General = 20, // General purpose error (no details.
+    NoQubit = 21, // No more qubits available.
+    Unsupp = 22, // Command sequence not supported.
+    Timeout = 23, // Timeout.
+    InUse = 24, // Qubit already in use.
+    Unknown = 25, // Unknown qubit ID
+}
 
 /// # CQC Command Header
 ///
@@ -399,9 +284,9 @@ deserialize_enum_u8!(
 ///
 /// A CQC Command Header MUST follow the CQC Header for the following messages:
 ///
-///  - Execute a command list (msg_type=1).
-///  - Start executing command list repeatedly (msg_type=2).
-///  - Get creation time of qubit (msg_type=8).
+///  - Command
+///  - Factory
+///  - GetTime
 ///
 /// ```text
 ///  0                   1                   2                   3
@@ -417,7 +302,29 @@ deserialize_enum_u8!(
 /// options   1 byte     Options when executing the command.
 /// ```
 ///
-/// ## Possible Instruction Types
+/// ## Notify
+///
+/// If the notify option bit is set, each of these commands return a CQC
+/// message Done indicating that execution has completed. Some commands also
+/// return additional messages, as described below:
+///
+/// - New: Returns a NewOk reply followed by a notify header with the qubit ID.
+/// - Measure(InPlace): Returns a MeasOut message followed by a notify header
+///                     containing the measurement outcome.
+/// - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
+/// - Epr(Recv): Returns an EprOk reply by an entanglement information header.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct CmdHdr {
+    pub qubit_id: u16,
+    pub instr: Cmd,
+    pub options: CmdOpt,
+}
+
+def_len!(CmdHdr, 4);
+
+/// # CQC Command Header Instruction Types
+///
+/// The supported CQC instructions.
 ///
 /// ```text
 /// Type     Name            Meaning
@@ -445,40 +352,6 @@ deserialize_enum_u8!(
 ///  20      Cnot            CNOT Gate with this as control.
 ///  21      Cphase          CPHASE Gate with this as control.
 /// ```
-///
-/// ## Command options
-///
-/// Command options are set as bit flags.
-///
-/// ```text
-/// Flag     Name    Meaning
-/// ----     ----    -------
-/// 0x01     Notify  Send a notification when command completes.
-/// 0x02     Action  On if there are actions to execute when done.
-/// 0x04     Block   Block until command is done.
-/// 0x08     IfThen  Execute command after done.
-/// ```
-///
-/// ## Notify
-///
-/// If the notify option bit is set, each of these commands return a CQC
-/// message Done indicating that execution has completed. Some commands also
-/// return additional messages, as described below:
-///
-/// - New: Returns a NewOk reply followed by a notify header with the qubit ID.
-/// - Measure(InPlace): Returns a MeasOut message followed by a notify header
-///                     containing the measurement outcome.
-/// - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
-/// - Epr(Recv): Returns an EprOk reply by an entanglement information header.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct CmdHdr {
-    pub qubit_id: u16,
-    pub instr: Cmd,
-    pub options: CmdOpt,
-}
-
-def_len!(CmdHdr, CMD_HDR_LENGTH, 4);
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cmd {
@@ -542,13 +415,21 @@ impl Cmd {
     }
 }
 
-serde_enum_u8!(
-    Cmd,
-    CmdVisitor,
-    "CQC instruction type"
-);
+serde_enum_u8!(Cmd, CmdVisitor, "CQC instruction type");
 
 bitflags! {
+    /// # CQC Command Header options
+    ///
+    /// Command options are set as bit flags.
+    ///
+    /// ```text
+    /// Flag     Name    Meaning
+    /// ----     ----    -------
+    /// 0x01     Notify  Send a notification when command completes.
+    /// 0x02     Action  On if there are actions to execute when done.
+    /// 0x04     Block   Block until command is done.
+    /// 0x08     IfThen  Execute command after done.
+    /// ```
     pub struct CmdOpt: u8 {
         const NOTIFY = 0x01;
         const ACTION = 0x02;
@@ -593,7 +474,7 @@ pub struct SeqHdr {
     pub cmd_length: u8,
 }
 
-def_len!(SeqHdr, SEQ_HDR_LENGTH, 1);
+def_len!(SeqHdr, 1);
 
 /// # CQC Rotation Header
 ///
@@ -615,7 +496,7 @@ pub struct RotHdr {
     pub step: u8,
 }
 
-def_len!(RotHdr, ROT_HDR_LENGTH, 1);
+def_len!(RotHdr, 1);
 
 /// # CQC Extra Qubit Header
 ///
@@ -638,7 +519,7 @@ pub struct QubitHdr {
     pub qubit_id: u16,
 }
 
-def_len!(QubitHdr, QUBIT_HDR_LENGTH, 2);
+def_len!(QubitHdr, 2);
 
 /// # CQC Communication Header
 ///
@@ -669,7 +550,7 @@ pub struct CommHdr {
     pub remote_port: u16,
 }
 
-def_len!(CommHdr, COMM_HDR_LENGTH, 8);
+def_len!(CommHdr, 8);
 
 /// # CQC Factory Header
 ///
@@ -689,26 +570,25 @@ def_len!(CommHdr, COMM_HDR_LENGTH, 8);
 /// num_iter       1 byte     Number of iterations to do the sequence.
 /// options        1 byte     Options when executing the factory.
 /// ```
-///
-/// ## Factory options
-///
-/// Factory options are set as bit flags.
-///
-/// ```text
-/// Flag     Name    Meaning
-/// ----     ----    -------
-/// 0x01     Notify  Send a notification when command completes.
-/// 0x04     Block   Block until factory is done.
-/// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct FactoryHdr {
     pub num_iter: u8,
     pub options: FactoryOpt,
 }
 
-def_len!(FactoryHdr, FACTORY_HDR_LENGTH, 2);
+def_len!(FactoryHdr, 2);
 
 bitflags! {
+    /// # CQC Factory Header options
+    ///
+    /// Factory options are set as bit flags.
+    ///
+    /// ```text
+    /// Flag     Name    Meaning
+    /// ----     ----    -------
+    /// 0x01     Notify  Send a notification when command completes.
+    /// 0x04     Block   Block until factory is done.
+    /// ```
     pub struct FactoryOpt: u8 {
         const NOTIFY = 0x01;
         const BLOCK = 0x04;
@@ -767,7 +647,7 @@ pub struct NotifyHdr {
     pub align: u8,
 }
 
-def_len!(NotifyHdr, NOTIFY_HDR_LENGTH, 20);
+def_len!(NotifyHdr, 20);
 
 /// # CQC Entanglement Information Header
 ///
@@ -836,7 +716,7 @@ pub struct EntInfoHdr {
     pub align: u8,
 }
 
-def_len!(EntInfoHdr, ENT_INFO_HDR_LENGTH, 40);
+def_len!(EntInfoHdr, 40);
 
 // ----------------------------------------------------------------------------
 // Tests.
