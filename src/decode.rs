@@ -25,9 +25,7 @@ impl Decoder {
 
     /// Decode supplied data.
     ///
-    /// Returns a `Status` object if no error during parsing occurred.  If the
-    /// data provided is incomplete and a CQC packet cannot be constructed a
-    /// `Status::Partial` is returned.
+    /// Returns a Result which contains either the Response or an error.
     pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<Error>> {
         let response: Response = match self.config.deserialize_from(buffer) {
             Ok(result) => result,
@@ -36,7 +34,6 @@ impl Decoder {
 
         Ok(response)
     }
-
 }
 #[cfg(test)]
 mod tests {
