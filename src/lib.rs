@@ -325,7 +325,7 @@ impl Encoder {
     ///
     /// If the provided buffer is not large enough to encode the request
     /// `encode_request` will panic.
-    pub fn encode_request<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
+    pub fn encode<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
         let len = request.len() as usize;
         assert!(buffer.len() >= len);
         self.config
@@ -356,11 +356,7 @@ impl Decoder {
     ///
     /// Returns a Result which contains either the Response or an error.
     pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<Error>> {
-        let response: Response = match self.config.deserialize_from(buffer) {
-            Ok(result) => result,
-            Err(e) => return Err(e),
-        };
-
+        let response =self.config.deserialize_from(buffer)?;
         Ok(response)
     }
 }

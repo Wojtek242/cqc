@@ -64,7 +64,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
@@ -128,7 +128,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
@@ -197,7 +197,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
@@ -267,7 +267,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
@@ -347,7 +347,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
@@ -375,7 +375,7 @@ mod tests {
         let encoder = Encoder::new();
 
         // This should panic.
-        encoder.encode_request(&request, &mut buffer[..]);
+        encoder.encode(&request, &mut buffer[..]);
     }
 
     // Test an encoding when the provided buffer is too small, but sufficient
@@ -415,7 +415,7 @@ mod tests {
         let encoder = Encoder::new();
 
         // This should panic.
-        encoder.encode_request(&request, &mut buffer[..]);
+        encoder.encode(&request, &mut buffer[..]);
     }
 
     // Test an encoding when the provided buffer is too large.  Excess should
@@ -459,7 +459,7 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), write_len);
+        assert_eq!(encoder.encode(&request, &mut buffer[..]), write_len);
         assert_eq!(buffer, expected);
     }
 }
