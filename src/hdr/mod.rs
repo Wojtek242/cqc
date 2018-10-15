@@ -1,7 +1,7 @@
 //! # CQC Interface
 //!
 //! This module documents the [CQC Interface
-//! specification](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html)
+//! specification](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html)
 //! and defines the necessary constants and header structures.
 
 extern crate serde;
