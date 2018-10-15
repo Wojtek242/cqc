@@ -39,7 +39,7 @@ impl Decoder {
 mod tests {
     use super::*;
     use hdr::*;
-    use RspNotify;
+    use RspInfo;
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -90,7 +90,7 @@ mod tests {
         // The response.
         let response = Response {
             cqc_hdr,
-            notify: RspNotify::None,
+            notify: RspInfo::None,
         };
 
         // Big-endian
@@ -139,7 +139,7 @@ mod tests {
         // The response.
         let response = Response {
             cqc_hdr,
-            notify: RspNotify::Notify(notify_hdr),
+            notify: RspInfo::Notify(notify_hdr),
         };
 
         // Big-endian
@@ -215,7 +215,7 @@ mod tests {
         // The response.
         let response = Response {
             cqc_hdr,
-            notify: RspNotify::EntInfo(ent_info_hdr),
+            notify: RspInfo::EntInfo(ent_info_hdr),
         };
 
         // Big-endian

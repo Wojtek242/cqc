@@ -101,7 +101,7 @@ impl Serialize for Request {
 ///
 /// A command request follows the CQC Header for certain message types.  It
 /// consists of the Command Header and for certain command types an additional
-/// Xtra header is required.
+/// header is required.
 #[derive(Debug, PartialEq)]
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
@@ -114,6 +114,29 @@ impl ReqCmd {
     }
 }
 
+impl Serialize for ReqCmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
+        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
+        if self.xtra_hdr.is_some() {
+            match self.xtra_hdr {
+                XtraHdr::Rot(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::Qubit(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::Comm(ref h) => s.serialize_field("xtra_hdr", h)?,
+                XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
+            };
+        }
+        s.end()
+    }
+}
+
+/// # Extra Header
+///
+/// Some commands require an additional header to follow the Command Header.
 #[derive(Debug, PartialEq)]
 pub enum XtraHdr {
     Rot(RotHdr),
@@ -155,26 +178,6 @@ impl XtraHdr {
     }
 }
 
-impl Serialize for ReqCmd {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
-        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
-        if self.xtra_hdr.is_some() {
-            match self.xtra_hdr {
-                XtraHdr::Rot(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::Qubit(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::Comm(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
-            };
-        }
-        s.end()
-    }
-}
-
 /// # Response
 ///
 /// If the notify flag is set on a request, the CQC Backend will return a
@@ -183,23 +186,27 @@ impl Serialize for ReqCmd {
 #[derive(Debug, PartialEq)]
 pub struct Response {
     pub cqc_hdr: CqcHdr,
-    pub notify: RspNotify,
+    pub notify: RspInfo,
 }
 
+/// # Response Info
+///
+/// Some responses from a CQC backed will be followed by either a Notify Header
+/// or an Entanglement Info Header.
 #[derive(Debug, PartialEq)]
-pub enum RspNotify {
+pub enum RspInfo {
     Notify(NotifyHdr),
     EntInfo(EntInfoHdr),
     None,
 }
 
-impl RspNotify {
-    def_is_hdr!(RspNotify, Notify, is_notify_hdr);
-    def_is_hdr!(RspNotify, EntInfo, is_ent_info_hdr);
+impl RspInfo {
+    def_is_hdr!(RspInfo, Notify, is_notify_hdr);
+    def_is_hdr!(RspInfo, EntInfo, is_ent_info_hdr);
 
-    def_get_hdr!(RspNotify, Notify, NotifyHdr, get_notify_hdr, "Notify");
+    def_get_hdr!(RspInfo, Notify, NotifyHdr, get_notify_hdr, "Notify");
     def_get_hdr!(
-        RspNotify,
+        RspInfo,
         EntInfo,
         EntInfoHdr,
         get_ent_info_hdr,
@@ -208,14 +215,14 @@ impl RspNotify {
 
     pub fn is_some(&self) -> bool {
         match self {
-            &RspNotify::None => false,
+            &RspInfo::None => false,
             _ => true,
         }
     }
 
     pub fn is_none(&self) -> bool {
         match self {
-            &RspNotify::None => true,
+            &RspInfo::None => true,
             _ => false,
         }
     }
@@ -243,7 +250,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
         if cqc_hdr.length == 0 {
             return Ok(Response {
                 cqc_hdr,
-                notify: RspNotify::None,
+                notify: RspInfo::None,
             });
         }
 
@@ -263,7 +270,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
                 let notify_hdr: NotifyHdr = seq.next_element()?.ok_or_else(|| {
                     de::Error::invalid_length(1, &self)
                 })?;
-                RspNotify::Notify(notify_hdr)
+                RspInfo::Notify(notify_hdr)
             }
             MsgType::Tp(Tp::EprOk) => {
                 if length < EntInfoHdr::hdr_len() {
@@ -277,9 +284,9 @@ impl<'de> Visitor<'de> for ResponseVisitor {
                 let ent_info_hdr: EntInfoHdr = seq.next_element()?.ok_or_else(|| {
                     de::Error::invalid_length(1, &self)
                 })?;
-                RspNotify::EntInfo(ent_info_hdr)
+                RspInfo::EntInfo(ent_info_hdr)
             }
-            _ => RspNotify::None,
+            _ => RspInfo::None,
         };
 
         Ok(Response { cqc_hdr, notify })
