@@ -14,9 +14,9 @@ use {ReqCmd, Request, XtraHdr};
 /// remote instance of the CQC backend.
 #[derive(Copy, Clone)]
 pub struct RemoteId {
-    remote_app_id: u16,
-    remote_node: u32,
-    remote_port: u16,
+    pub remote_app_id: u16,
+    pub remote_node: u32,
+    pub remote_port: u16,
 }
 
 impl Request {

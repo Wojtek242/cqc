@@ -111,6 +111,15 @@ pub enum MsgType {
     Err(Err),
 }
 
+impl From<MsgType> for u8 {
+    fn from(msg_type: MsgType) -> Self {
+        match msg_type {
+            MsgType::Tp(val) => val as u8,
+            MsgType::Err(val) => val as u8,
+        }
+    }
+}
+
 macro_rules! def_is_tp {
     ($tp: pat, $name: ident) => {
         #[inline]
