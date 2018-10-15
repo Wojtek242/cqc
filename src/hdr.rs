@@ -16,6 +16,22 @@ use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
 // Macros.
 // ----------------------------------------------------------------------------
 
+macro_rules! def_len {
+    ($hdr_name: ident, $name: ident, $value: expr) => {
+        impl $hdr_name {
+            #[inline]
+            pub fn hdr_len() -> u32 {
+                $name
+            }
+            #[inline]
+            pub fn len(&self) -> u32 {
+                $name
+            }
+        }
+        pub const $name: u32 = $value;
+    }
+}
+
 macro_rules! def_set_flag {
     ($opt_name: ident, $flag: ident, $fn_name: ident) => {
         #[inline]
@@ -145,7 +161,7 @@ pub struct CqcHdr {
     pub length: u32,
 }
 
-pub const CQC_HDR_LENGTH: u32 = 8;
+def_len!(CqcHdr, CQC_HDR_LENGTH, 8);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
@@ -403,7 +419,7 @@ pub struct CmdHdr {
     pub options: CmdOpt,
 }
 
-pub const CMD_HDR_LENGTH: u32 = 4;
+def_len!(CmdHdr, CMD_HDR_LENGTH, 4);
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -561,7 +577,7 @@ pub struct SeqHdr {
     pub cmd_length: u8,
 }
 
-pub const SEQUENCE_HDR_LENGTH: u32 = 1;
+def_len!(SeqHdr, SEQ_HDR_LENGTH, 1);
 
 /// # CQC Rotation Header
 ///
@@ -583,7 +599,7 @@ pub struct RotHdr {
     pub step: u8,
 }
 
-pub const ROTATION_HDR_LENGTH: u32 = 1;
+def_len!(RotHdr, ROT_HDR_LENGTH, 1);
 
 /// # CQC Extra Qubit Header
 ///
@@ -606,7 +622,7 @@ pub struct QubitHdr {
     pub qubit_id: u16,
 }
 
-pub const QUBIT_HDR_LENGTH: u32 = 2;
+def_len!(QubitHdr, QUBIT_HDR_LENGTH, 2);
 
 /// # CQC Communication Header
 ///
@@ -637,7 +653,7 @@ pub struct CommHdr {
     pub remote_port: u16,
 }
 
-pub const COMMUNICATION_HDR_LENGTH: u32 = 8;
+def_len!(CommHdr, COMM_HDR_LENGTH, 8);
 
 /// # CQC Factory Header
 ///
@@ -674,7 +690,7 @@ pub struct FactoryHdr {
     pub options: FactoryOpt,
 }
 
-pub const FACTORY_HDR_LENGTH: u32 = 2;
+def_len!(FactoryHdr, FACTORY_HDR_LENGTH, 2);
 
 bitflags! {
     pub struct FactoryOpt: u8 {
@@ -735,7 +751,7 @@ pub struct NotifyHdr {
     pub align: u8,
 }
 
-pub const NOTIFY_HDR_LENGTH: u32 = 20;
+def_len!(NotifyHdr, NOTIFY_HDR_LENGTH, 20);
 
 /// # CQC Entanglement Information Header
 ///
@@ -804,7 +820,7 @@ pub struct EntInfoHdr {
     pub align: u8,
 }
 
-pub const ENT_INFO_HDR_LENGTH: u32 = 40;
+def_len!(EntInfoHdr, ENT_INFO_HDR_LENGTH, 40);
 
 // ----------------------------------------------------------------------------
 // Combine options into an enum.
@@ -833,7 +849,7 @@ mod tests {
             app_id: 0,
             length: 0,
         };
-        assert_eq!(serialize(&cqc_hdr).unwrap().len() as u32, CQC_HDR_LENGTH);
+        assert_eq!(serialize(&cqc_hdr).unwrap().len() as u32, cqc_hdr.len());
     }
 
     #[test]
@@ -843,7 +859,7 @@ mod tests {
             instr: Cmd::I,
             options: CmdOpt::empty(),
         };
-        assert_eq!(serialize(&cmd_hdr).unwrap().len() as u32, CMD_HDR_LENGTH);
+        assert_eq!(serialize(&cmd_hdr).unwrap().len() as u32, cmd_hdr.len());
     }
 
     #[test]
@@ -851,7 +867,7 @@ mod tests {
         let seq_hdr = SeqHdr { cmd_length: 0 };
         assert_eq!(
             serialize(&seq_hdr).unwrap().len() as u32,
-            SEQUENCE_HDR_LENGTH
+            seq_hdr.len()
         );
     }
 
@@ -860,7 +876,7 @@ mod tests {
         let rot_hdr = RotHdr { step: 0 };
         assert_eq!(
             serialize(&rot_hdr).unwrap().len() as u32,
-            ROTATION_HDR_LENGTH
+            rot_hdr.len()
         );
     }
 
@@ -869,7 +885,7 @@ mod tests {
         let qubit_hdr = QubitHdr { qubit_id: 0 };
         assert_eq!(
             serialize(&qubit_hdr).unwrap().len() as u32,
-            QUBIT_HDR_LENGTH
+            qubit_hdr.len()
         );
     }
 
@@ -882,7 +898,7 @@ mod tests {
         };
         assert_eq!(
             serialize(&comm_hdr).unwrap().len() as u32,
-            COMMUNICATION_HDR_LENGTH
+            comm_hdr.len()
         );
     }
 
@@ -894,7 +910,7 @@ mod tests {
         };
         assert_eq!(
             serialize(&factory_hdr).unwrap().len() as u32,
-            FACTORY_HDR_LENGTH
+            factory_hdr.len()
         );
     }
 
@@ -911,7 +927,7 @@ mod tests {
         };
         assert_eq!(
             serialize(&notify_hdr).unwrap().len() as u32,
-            NOTIFY_HDR_LENGTH
+            notify_hdr.len()
         );
     }
 
@@ -933,7 +949,7 @@ mod tests {
         };
         assert_eq!(
             serialize(&ent_info_hdr).unwrap().len() as u32,
-            ENT_INFO_HDR_LENGTH
+            ent_info_hdr.len()
         );
     }
 }

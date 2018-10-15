@@ -51,98 +51,94 @@ impl Request {
     pub fn command(app_id: u16) -> Request {
         Request::build_cqc_hdr(app_id, MsgType::Tp(Tp::Command))
     }
-    /// Build a factory request.
-    pub fn factory(app_id: u16) -> Request {
-        Request::build_cqc_hdr(app_id, MsgType::Tp(Tp::Factory))
-    }
 
     /// Build an identity operation command request.
     pub fn cmd_i(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::I, options, None);
+        self.build_req_cmd(qubit_id, Cmd::I, options, XtraHdr::None);
     }
     /// Build a qubit creation command request.
     pub fn cmd_new(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::New, options, None);
+        self.build_req_cmd(qubit_id, Cmd::New, options, XtraHdr::None);
     }
     /// Build a measurement command request.
     pub fn cmd_measure(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Measure, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Measure, options, XtraHdr::None);
     }
     /// Build an in-place measurement command request.
     pub fn cmd_measure_inplace(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::MeasureInplace, options, None);
+        self.build_req_cmd(qubit_id, Cmd::MeasureInplace, options, XtraHdr::None);
     }
     /// Build a reset command request.
     pub fn cmd_reset(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Reset, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Reset, options, XtraHdr::None);
     }
     /// Build a send command request.  This command has to identify the remote node to send to.
     pub fn cmd_send(&mut self, qubit_id: u16, options: CmdOpt, remote_id: RemoteId) {
         let xtra_hdr = Request::xtra_remote_node(remote_id);
-        self.build_req_cmd(qubit_id, Cmd::Send, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::Send, options, xtra_hdr);
     }
     /// Build a receive command request.
     pub fn cmd_recv(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Recv, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Recv, options, XtraHdr::None);
     }
     /// Build an EPR creation command request.
     pub fn cmd_epr(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Epr, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Epr, options, XtraHdr::None);
     }
     /// Build an EPR receive command request.
     pub fn cmd_epr_recv(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::EprRecv, options, None);
+        self.build_req_cmd(qubit_id, Cmd::EprRecv, options, XtraHdr::None);
     }
 
     /// Build a Pauli X command request.
     pub fn cmd_x(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::X, options, None);
+        self.build_req_cmd(qubit_id, Cmd::X, options, XtraHdr::None);
     }
     /// Build a Pauli Z command request.
     pub fn cmd_z(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Z, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Z, options, XtraHdr::None);
     }
     /// Build a Pauli Y command request.
     pub fn cmd_y(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::Y, options, None);
+        self.build_req_cmd(qubit_id, Cmd::Y, options, XtraHdr::None);
     }
     /// Build a T Gate command request.
     pub fn cmd_t(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::T, options, None);
+        self.build_req_cmd(qubit_id, Cmd::T, options, XtraHdr::None);
     }
     /// Build an X rotation command request.  Rotation is specified in steps of pi/256 increments.
     pub fn cmd_rot_x(&mut self, qubit_id: u16, options: CmdOpt, steps: u8) {
         let xtra_hdr = Request::xtra_rotation_angle(steps);
-        self.build_req_cmd(qubit_id, Cmd::RotX, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::RotX, options, xtra_hdr);
     }
     /// Build a Y rotation command request.  Rotation is specified in steps of pi/256 increments.
     pub fn cmd_rot_y(&mut self, qubit_id: u16, options: CmdOpt, steps: u8) {
         let xtra_hdr = Request::xtra_rotation_angle(steps);
-        self.build_req_cmd(qubit_id, Cmd::RotY, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::RotY, options, xtra_hdr);
     }
     /// Build a Z rotation command request.  Rotation is specified in steps of pi/256 increments.
     pub fn cmd_rot_z(&mut self, qubit_id: u16, options: CmdOpt, steps: u8) {
         let xtra_hdr = Request::xtra_rotation_angle(steps);
-        self.build_req_cmd(qubit_id, Cmd::RotZ, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::RotZ, options, xtra_hdr);
     }
     /// Build a Hadamard Gate command request.
     pub fn cmd_h(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::H, options, None);
+        self.build_req_cmd(qubit_id, Cmd::H, options, XtraHdr::None);
     }
     /// Build a K Gate command request.
     pub fn cmd_k(&mut self, qubit_id: u16, options: CmdOpt) {
-        self.build_req_cmd(qubit_id, Cmd::K, options, None);
+        self.build_req_cmd(qubit_id, Cmd::K, options, XtraHdr::None);
     }
 
     /// Build a CNOT command request.  This command requires an Xtra Header to identify the target qubit.
     pub fn cmd_cnot(&mut self, qubit_id: u16, options: CmdOpt, target_qubit_id: u16) {
         let xtra_hdr = Request::xtra_target_qubit(target_qubit_id);
-        self.build_req_cmd(qubit_id, Cmd::Cnot, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::Cnot, options, xtra_hdr);
     }
     /// Build a CPHASE command request.
     pub fn cmd_cphase(&mut self, qubit_id: u16, options: CmdOpt, target_qubit_id: u16) {
         let xtra_hdr = Request::xtra_target_qubit(target_qubit_id);
-        self.build_req_cmd(qubit_id, Cmd::Cphase, options, Some(xtra_hdr));
+        self.build_req_cmd(qubit_id, Cmd::Cphase, options, xtra_hdr);
     }
 
     /// Build a Command Header Request.
@@ -151,7 +147,7 @@ impl Request {
         qubit_id: u16,
         instr: Cmd,
         options: CmdOpt,
-        xtra_hdr: Option<XtraHdr>,
+        xtra_hdr: XtraHdr,
     ) {
         let cmd_hdr = CmdHdr {
             qubit_id,
@@ -164,15 +160,7 @@ impl Request {
 
     /// Append a Command Header request.
     fn append_req_cmd(&mut self, req_cmd: ReqCmd) {
-        self.cqc_hdr.length = CMD_HDR_LENGTH +
-            match req_cmd.xtra_hdr {
-                Some(XtraHdr::Rot(_)) => ROTATION_HDR_LENGTH,
-                Some(XtraHdr::Qubit(_)) => QUBIT_HDR_LENGTH,
-                Some(XtraHdr::Comm(_)) => COMMUNICATION_HDR_LENGTH,
-                Some(XtraHdr::Factory(_)) => FACTORY_HDR_LENGTH,
-                None => 0,
-            };
-
+        self.cqc_hdr.length = CMD_HDR_LENGTH + req_cmd.xtra_hdr.len();
         self.req_cmd = Some(req_cmd);
     }
 

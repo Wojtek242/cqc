@@ -16,6 +16,7 @@
 extern crate bitflags;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde;
 
 pub mod hdr;
 pub mod builder;
@@ -23,6 +24,9 @@ pub mod encode;
 pub mod decode;
 
 use hdr::*;
+
+use serde::{Serialize, Serializer};
+use serde::ser::SerializeStruct;
 
 // ----------------------------------------------------------------------------
 // Macros.
@@ -64,6 +68,31 @@ pub struct Request {
     pub req_cmd: Option<ReqCmd>,
 }
 
+impl Request {
+    pub fn len(&self) -> u32 {
+        CqcHdr::hdr_len() +
+            match self.req_cmd {
+                Some(ref r) => r.len(),
+                None => 0,
+            }
+    }
+}
+
+impl Serialize for Request {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Request", 2)?;
+        s.serialize_field("cqc_hdr", &self.cqc_hdr)?;
+        if self.req_cmd.is_some() {
+            s.serialize_field("req_cmd", self.req_cmd.as_ref().unwrap())?;
+        }
+        s.end()
+    }
+}
+
 /// # Command Request
 ///
 /// A command request follows the CQC Header for certain message types.  It
@@ -72,7 +101,28 @@ pub struct Request {
 #[derive(Debug, PartialEq)]
 pub struct ReqCmd {
     pub cmd_hdr: CmdHdr,
-    pub xtra_hdr: Option<XtraHdr>,
+    pub xtra_hdr: XtraHdr,
+}
+
+impl ReqCmd {
+    pub fn len(&self) -> u32 {
+        CmdHdr::hdr_len() + self.xtra_hdr.len()
+    }
+}
+
+impl Serialize for ReqCmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
+        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
+        if self.xtra_hdr.is_some() {
+            s.serialize_field("xtra_hdr", &self.xtra_hdr)?;
+        }
+        s.end()
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -80,19 +130,55 @@ pub enum XtraHdr {
     Rot(RotHdr),
     Qubit(QubitHdr),
     Comm(CommHdr),
-    Factory(FactoryHdr),
+    None,
 }
 
 impl XtraHdr {
+    pub fn len(&self) -> u32 {
+        match *self {
+            XtraHdr::Rot(_) => RotHdr::hdr_len(),
+            XtraHdr::Qubit(_) => QubitHdr::hdr_len(),
+            XtraHdr::Comm(_) => CommHdr::hdr_len(),
+            XtraHdr::None => 0,
+        }
+    }
+
     def_is_hdr!(XtraHdr, Rot, is_rot_hdr);
     def_is_hdr!(XtraHdr, Qubit, is_qubit_hdr);
     def_is_hdr!(XtraHdr, Comm, is_comm_hdr);
-    def_is_hdr!(XtraHdr, Factory, is_factory_hdr);
 
     def_get_hdr!(XtraHdr, Rot, RotHdr, get_rot_hdr, "Rotation");
     def_get_hdr!(XtraHdr, Qubit, QubitHdr, get_qubit_hdr, "Extra Qubit");
     def_get_hdr!(XtraHdr, Comm, CommHdr, get_comm_hdr, "Communication");
-    def_get_hdr!(XtraHdr, Factory, FactoryHdr, get_factory_hdr, "Factory");
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            &XtraHdr::None => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        match self {
+            &XtraHdr::None => true,
+            _ => false,
+        }
+    }
+}
+
+impl Serialize for XtraHdr {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match *self {
+            XtraHdr::Rot(ref h) => h.serialize(serializer),
+            XtraHdr::Qubit(ref h) => h.serialize(serializer),
+            XtraHdr::Comm(ref h) => h.serialize(serializer),
+            XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
+        }
+    }
 }
 
 /// # Response
@@ -103,13 +189,14 @@ impl XtraHdr {
 #[derive(Debug, PartialEq)]
 pub struct Response {
     pub cqc_hdr: CqcHdr,
-    pub notify: Option<RspNotify>,
+    pub notify: RspNotify,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum RspNotify {
     Notify(NotifyHdr),
     EntInfo(EntInfoHdr),
+    None,
 }
 
 impl RspNotify {
@@ -124,4 +211,18 @@ impl RspNotify {
         get_ent_info_hdr,
         "Entanglement Info"
     );
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            &RspNotify::None => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        match self {
+            &RspNotify::None => true,
+            _ => false,
+        }
+    }
 }

@@ -5,55 +5,19 @@
 
 extern crate bincode;
 
-use hdr::*;
-use {ReqCmd, Request};
+use Request;
 
 pub struct Encoder {
     config: bincode::Config,
 }
 
 impl Encoder {
-    /// Create an `Encoder` with the default endianness setting (little endian).
-    pub fn new() -> Encoder {
-        Encoder {
-            config: bincode::config(),
-        }
-    }
-
     /// Create a big endian `Encoder`.
-    pub fn big_endian() -> Encoder {
+    pub fn new() -> Encoder {
         let mut config = bincode::config();
         config.big_endian();
 
         Encoder { config }
-    }
-
-    /// Create a little endian `Encoder`.
-    pub fn little_endian() -> Encoder {
-        let mut config = bincode::config();
-        config.little_endian();
-
-        Encoder { config }
-    }
-
-    /// Work out the number of bytes needed to encode the provided request.
-    pub fn encode_request_len<'buf>(request: &Request) -> usize {
-        let mut size: usize = CQC_HDR_LENGTH as usize;
-
-        if request.req_cmd.is_none() {
-            return size;
-        }
-
-        size += CMD_HDR_LENGTH as usize;
-
-        let req_cmd: &ReqCmd = request.req_cmd.as_ref().unwrap();
-        if req_cmd.xtra_hdr.is_none() {
-            return size;
-        }
-
-        size += XTRA_HDR_LENGTH as usize;
-
-        size
     }
 
     /// Encode a CQC request packet into buffer of bytes.  The return value is
@@ -61,52 +25,22 @@ impl Encoder {
     ///
     /// If the provided buffer is not large enough to encode the request
     /// `encode_request` will panic.
-    ///
-    /// Currently, this only supports encoding of complete packets.  That is,
-    /// partial packets cannot be encoded.
     pub fn encode_request<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
-        let mut pos: usize;
-        let mut end: usize;
-
-        end = CQC_HDR_LENGTH as usize;
-        assert!(buffer.len() >= end);
+        let len = request.len() as usize;
+        assert!(buffer.len() >= len);
         self.config
-            .serialize_into(&mut buffer[..end], &request.cqc_hdr)
-            .unwrap();
-        pos = end;
-
-        if request.req_cmd.is_none() {
-            return end;
-        }
-
-        let req_cmd: &ReqCmd = request.req_cmd.as_ref().unwrap();
-
-        end += CMD_HDR_LENGTH as usize;
-        assert!(buffer.len() >= end);
-        self.config
-            .serialize_into(&mut buffer[pos..end], &req_cmd.cmd_hdr)
-            .unwrap();
-        pos = end;
-
-        if req_cmd.xtra_hdr.is_none() {
-            return end;
-        }
-
-        let xtra_hdr: &XtraHdr = &req_cmd.xtra_hdr.as_ref().unwrap();
-
-        end += XTRA_HDR_LENGTH as usize;
-        assert!(buffer.len() >= end);
-        self.config
-            .serialize_into(&mut buffer[pos..end], xtra_hdr)
+            .serialize_into(&mut buffer[..len], &request)
             .unwrap();
 
-        end
+        len
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use {ReqCmd, Request, XtraHdr};
+    use hdr::*;
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -123,9 +57,11 @@ mod tests {
     // Set up constants.
     const APP_ID: u16 = 0x0A_0E;
     const QUBIT_ID: u16 = 0xBE_56;
+    const EXTRA_QUBIT_ID: u16 = 0xFE_80;
     const REMOTE_APP_ID: u16 = 0x5E_3F;
     const REMOTE_NODE: u32 = 0xAE_04_E2_52;
     const REMOTE_PORT: u16 = 0x91_03;
+    const STEP: u8 = 192;
 
     // Encode a request packet that only has a CQC header.
     #[test]
@@ -149,28 +85,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let buf_len: usize = (CqcHdr::hdr_len() + length) as usize;
         let mut buffer = vec![0xFF; buf_len];
-
-        // Little-endian
-        let expected: Vec<u8> = vec![
-            CQC_VERSION,
-            cqc_type as u8,
-            get_byte_16!(APP_ID, 1),
-            get_byte_16!(APP_ID, 0),
-            get_byte_32!(length, 3),
-            get_byte_32!(length, 2),
-            get_byte_32!(length, 1),
-            get_byte_32!(length, 0),
-        ];
-
-        let encoder = Encoder::little_endian();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
-
-        let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -184,7 +100,7 @@ mod tests {
             get_byte_32!(length, 3),
         ];
 
-        let encoder = Encoder::big_endian();
+        let encoder = Encoder::new();
         assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
@@ -194,7 +110,7 @@ mod tests {
     fn cmd_hdr_encode() {
         let cqc_type = Tp::Command;
         let msg_type = MsgType::Tp(cqc_type);
-        let length: u32 = CMD_HDR_LENGTH;
+        let length: u32 = CmdHdr::hdr_len();
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -217,7 +133,7 @@ mod tests {
 
         let req_cmd = ReqCmd {
             cmd_hdr,
-            xtra_hdr: None,
+            xtra_hdr: XtraHdr::None,
         };
 
         // The request.
@@ -227,34 +143,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let buf_len: usize = (CqcHdr::hdr_len() + length) as usize;
         let mut buffer = vec![0xFF; buf_len];
-
-        // Little-endian
-        let expected: Vec<u8> = vec![
-            // CQC header
-            CQC_VERSION,
-            cqc_type as u8,
-            get_byte_16!(APP_ID, 1),
-            get_byte_16!(APP_ID, 0),
-            get_byte_32!(length, 3),
-            get_byte_32!(length, 2),
-            get_byte_32!(length, 1),
-            get_byte_32!(length, 0),
-            // CMD header
-            get_byte_16!(QUBIT_ID, 1),
-            get_byte_16!(QUBIT_ID, 0),
-            instr as u8,
-            options.bits(),
-        ];
-
-        let encoder = Encoder::little_endian();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
-
-        let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -274,17 +164,156 @@ mod tests {
             options.bits(),
         ];
 
-        let encoder = Encoder::big_endian();
+        let encoder = Encoder::new();
         assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
-    // Encode a packet with a CMD and XTRA headers.
+    // Encode a packet with a CMD and ROT headers.
     #[test]
-    fn xtra_hdr_encode() {
+    fn rot_hdr_encode() {
         let cqc_type = Tp::Command;
         let msg_type = MsgType::Tp(cqc_type);
-        let length: u32 = CMD_HDR_LENGTH + XTRA_HDR_LENGTH;
+        let length: u32 = CmdHdr::hdr_len() + RotHdr::hdr_len();
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: CQC_VERSION,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        let instr = Cmd::RotX;
+        let mut options = CmdOpt::empty();
+        options.set_notify().set_block();
+
+        // The CMD header.
+        let cmd_hdr = CmdHdr {
+            qubit_id: QUBIT_ID,
+            instr: instr,
+            options: options,
+        };
+
+        // The XTRA header.
+        let xtra_hdr = RotHdr { step: STEP };
+
+        let req_cmd = ReqCmd {
+            cmd_hdr,
+            xtra_hdr: XtraHdr::Rot(xtra_hdr),
+        };
+
+        // The request.
+        let request = Request {
+            cqc_hdr,
+            req_cmd: Some(req_cmd),
+        };
+
+        // Buffer to write into.
+        let buf_len: usize = (CqcHdr::hdr_len() + length) as usize;
+        let mut buffer = vec![0xFF; buf_len];
+
+        // Big-endian
+        let expected: Vec<u8> = vec![
+            // CQC header
+            CQC_VERSION,
+            cqc_type as u8,
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // CMD header
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+            instr as u8,
+            options.bits(),
+            // XTRA header
+            STEP,
+        ];
+
+        let encoder = Encoder::new();
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
+    }
+
+    // Encode a packet with a CMD and QUBIT headers.
+    #[test]
+    fn qubit_hdr_encode() {
+        let cqc_type = Tp::Command;
+        let msg_type = MsgType::Tp(cqc_type);
+        let length: u32 = CmdHdr::hdr_len() + QubitHdr::hdr_len();
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: CQC_VERSION,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        let instr = Cmd::Cnot;
+        let mut options = CmdOpt::empty();
+        options.set_notify().set_block();
+
+        // The CMD header.
+        let cmd_hdr = CmdHdr {
+            qubit_id: QUBIT_ID,
+            instr: instr,
+            options: options,
+        };
+
+        // The XTRA header.
+        let xtra_hdr = QubitHdr { qubit_id: EXTRA_QUBIT_ID };
+
+        let req_cmd = ReqCmd {
+            cmd_hdr,
+            xtra_hdr: XtraHdr::Qubit(xtra_hdr),
+        };
+
+        // The request.
+        let request = Request {
+            cqc_hdr,
+            req_cmd: Some(req_cmd),
+        };
+
+        // Buffer to write into.
+        let buf_len: usize = (CqcHdr::hdr_len() + length) as usize;
+        let mut buffer = vec![0xFF; buf_len];
+
+        // Big-endian
+        let expected: Vec<u8> = vec![
+            // CQC header
+            CQC_VERSION,
+            cqc_type as u8,
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // CMD header
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+            instr as u8,
+            options.bits(),
+            // XTRA header
+            get_byte_16!(EXTRA_QUBIT_ID, 0),
+            get_byte_16!(EXTRA_QUBIT_ID, 1),
+        ];
+
+        let encoder = Encoder::new();
+        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
+        assert_eq!(buffer, expected);
+    }
+
+    // Encode a packet with a CMD and COMM headers.
+    #[test]
+    fn comm_hdr_encode() {
+        let cqc_type = Tp::Command;
+        let msg_type = MsgType::Tp(cqc_type);
+        let length: u32 = CmdHdr::hdr_len() + CommHdr::hdr_len();
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -306,19 +335,15 @@ mod tests {
         };
 
         // The XTRA header.
-        let xtra_hdr = XtraHdr {
-            xtra_qubit_id: 0,
+        let xtra_hdr = CommHdr {
             remote_app_id: REMOTE_APP_ID,
             remote_node: REMOTE_NODE,
-            cmd_length: 0,
             remote_port: REMOTE_PORT,
-            steps: 0,
-            align: 0,
         };
 
         let req_cmd = ReqCmd {
             cmd_hdr,
-            xtra_hdr: Some(xtra_hdr),
+            xtra_hdr: XtraHdr::Comm(xtra_hdr),
         };
 
         // The request.
@@ -328,51 +353,8 @@ mod tests {
         };
 
         // Buffer to write into.
-        let buf_len: usize = (CQC_HDR_LENGTH + length) as usize;
+        let buf_len: usize = (CqcHdr::hdr_len() + length) as usize;
         let mut buffer = vec![0xFF; buf_len];
-
-        // Little-endian
-        let expected: Vec<u8> = vec![
-            // CQC header
-            CQC_VERSION,
-            cqc_type as u8,
-            get_byte_16!(APP_ID, 1),
-            get_byte_16!(APP_ID, 0),
-            get_byte_32!(length, 3),
-            get_byte_32!(length, 2),
-            get_byte_32!(length, 1),
-            get_byte_32!(length, 0),
-            // CMD header
-            get_byte_16!(QUBIT_ID, 1),
-            get_byte_16!(QUBIT_ID, 0),
-            instr as u8,
-            options.bits(),
-            // XTRA header
-            0x00,
-            0x00,
-            get_byte_16!(REMOTE_APP_ID, 1),
-            get_byte_16!(REMOTE_APP_ID, 0),
-            get_byte_32!(REMOTE_NODE, 3),
-            get_byte_32!(REMOTE_NODE, 2),
-            get_byte_32!(REMOTE_NODE, 1),
-            get_byte_32!(REMOTE_NODE, 0),
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            get_byte_16!(REMOTE_PORT, 1),
-            get_byte_16!(REMOTE_PORT, 0),
-            0x00,
-            0x00,
-        ];
-
-        let encoder = Encoder::little_endian();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
-
-        let encoder = Encoder::new();
-        assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
-        assert_eq!(buffer, expected);
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -391,32 +373,24 @@ mod tests {
             instr as u8,
             options.bits(),
             // XTRA header
-            0x00,
-            0x00,
             get_byte_16!(REMOTE_APP_ID, 0),
             get_byte_16!(REMOTE_APP_ID, 1),
             get_byte_32!(REMOTE_NODE, 0),
             get_byte_32!(REMOTE_NODE, 1),
             get_byte_32!(REMOTE_NODE, 2),
             get_byte_32!(REMOTE_NODE, 3),
-            0x00,
-            0x00,
-            0x00,
-            0x00,
             get_byte_16!(REMOTE_PORT, 0),
             get_byte_16!(REMOTE_PORT, 1),
-            0x00,
-            0x00,
         ];
 
-        let encoder = Encoder::big_endian();
+        let encoder = Encoder::new();
         assert_eq!(encoder.encode_request(&request, &mut buffer[..]), buf_len);
         assert_eq!(buffer, expected);
     }
 
     // Test an encoding when the provided buffer is too small (should panic).
     #[test]
-    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
+    #[should_panic(expected = "assertion failed: buffer.len() >= len")]
     fn cqc_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -433,7 +407,7 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH - 1) as usize];
+        let mut buffer = vec![0xFF; (CqcHdr::hdr_len() - 1) as usize];
 
         let encoder = Encoder::new();
 
@@ -444,7 +418,7 @@ mod tests {
     // Test an encoding when the provided buffer is too small, but sufficient
     // for the CQC header (should panic).
     #[test]
-    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
+    #[should_panic(expected = "assertion failed: buffer.len() >= len")]
     fn cmd_hdr_buf_too_small() {
         // The CQC header.
         let cqc_hdr = CqcHdr {
@@ -463,7 +437,7 @@ mod tests {
 
         let req_cmd = ReqCmd {
             cmd_hdr,
-            xtra_hdr: None,
+            xtra_hdr: XtraHdr::None,
         };
 
         // The request.
@@ -473,59 +447,7 @@ mod tests {
         };
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (CQC_HDR_LENGTH + CMD_HDR_LENGTH - 1) as usize];
-
-        let encoder = Encoder::new();
-
-        // This should panic.
-        encoder.encode_request(&request, &mut buffer[..]);
-    }
-
-    // Test an encoding when the provided buffer is too small, but sufficient
-    // for the CQC and CMD headers (should panic).
-    #[test]
-    #[should_panic(expected = "assertion failed: buffer.len() >= end")]
-    fn xtra_hdr_buf_too_small() {
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: 0,
-            msg_type: MsgType::Tp(Tp::Hello),
-            app_id: 0,
-            length: 0,
-        };
-
-        // The CMD header.
-        let cmd_hdr = CmdHdr {
-            qubit_id: 0,
-            instr: Cmd::I,
-            options: CmdOpt::empty(),
-        };
-
-        // The XTRA header.
-        let xtra_hdr = XtraHdr {
-            xtra_qubit_id: 0,
-            remote_app_id: 0,
-            remote_node: 0,
-            cmd_length: 0,
-            remote_port: 0,
-            steps: 0,
-            align: 0,
-        };
-
-        let req_cmd = ReqCmd {
-            cmd_hdr,
-            xtra_hdr: Some(xtra_hdr),
-        };
-
-        // The request.
-        let request = Request {
-            cqc_hdr,
-            req_cmd: Some(req_cmd),
-        };
-
-        // Buffer to write into.
-        let mut buffer =
-            vec![0xFF; (CQC_HDR_LENGTH + CMD_HDR_LENGTH + XTRA_HDR_LENGTH - 1) as usize];
+        let mut buffer = vec![0xFF; (CqcHdr::hdr_len() + CmdHdr::hdr_len() - 1) as usize];
 
         let encoder = Encoder::new();
 
@@ -552,11 +474,11 @@ mod tests {
         };
 
         // Buffer to write into.
-        let write_len: usize = CQC_HDR_LENGTH as usize;
+        let write_len: usize = CqcHdr::hdr_len() as usize;
         let buf_len: usize = write_len + 4;
         let mut buffer = vec![0xFF; buf_len as usize];
 
-        // Little-endian
+        // Big-endian
         let expected: Vec<u8> = vec![
             0x00,
             0x00,
