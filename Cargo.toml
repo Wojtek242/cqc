@@ -1,8 +1,7 @@
 [package]
 name = "cqc"
-version = "0.1.1"
-authors = ["Wojciech Kozlowski <wk@wojciechkozlowski.eu>",
-           "Marco Lam <cylammarco@gmail.com>"]
+version = "0.1.2"
+authors = ["Wojciech Kozlowski <wk@wojciechkozlowski.eu>"]
 license = "MIT"
 keywords = ["cqc", "quantum", "simulaqron"]
 readme = "README.md"
