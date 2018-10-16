@@ -36,7 +36,10 @@ impl Builder {
             version: Version::V1,
             msg_type: msg_type,
             app_id: self.app_id,
-            length: 0,
+            length: match req_cmd {
+                Some(ref req) => req.len(),
+                None => 0,
+            },
         };
 
         Request { cqc_hdr, req_cmd }

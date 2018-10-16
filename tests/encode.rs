@@ -37,8 +37,9 @@ mod tests {
         let buf_len: usize = request.len() as usize;
         let mut buffer = vec![0xFF; buf_len];
 
-        // Extract values
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Hello);
+        let length = 0;
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -67,10 +68,11 @@ mod tests {
         let buf_len: usize = request.len() as usize;
         let mut buffer = vec![0xFF; buf_len];
 
-        // Extract values
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
-        let req_cmd = request.req_cmd.as_ref().unwrap();
-        let (instr, options) = (req_cmd.cmd_hdr.instr, req_cmd.cmd_hdr.options);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len();
+        let instr = Cmd::New;
+        let options = *CmdOpt::empty().set_notify().set_block();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -105,10 +107,11 @@ mod tests {
         let buf_len: usize = request.len() as usize;
         let mut buffer = vec![0xFF; buf_len];
 
-        // Extract values
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
-        let req_cmd = request.req_cmd.as_ref().unwrap();
-        let (instr, options) = (req_cmd.cmd_hdr.instr, req_cmd.cmd_hdr.options);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len() + RotHdr::hdr_len();
+        let instr = Cmd::RotX;
+        let options = *CmdOpt::empty().set_notify().set_block();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -149,10 +152,11 @@ mod tests {
         let buf_len: usize = request.len() as usize;
         let mut buffer = vec![0xFF; buf_len];
 
-        // Extract values
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
-        let req_cmd = request.req_cmd.as_ref().unwrap();
-        let (instr, options) = (req_cmd.cmd_hdr.instr, req_cmd.cmd_hdr.options);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len() + QubitHdr::hdr_len();
+        let instr = Cmd::Cnot;
+        let options = *CmdOpt::empty().set_notify().set_block();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -198,10 +202,11 @@ mod tests {
         let buf_len: usize = request.len() as usize;
         let mut buffer = vec![0xFF; buf_len];
 
-        // Extract values
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
-        let req_cmd = request.req_cmd.as_ref().unwrap();
-        let (instr, options) = (req_cmd.cmd_hdr.instr, req_cmd.cmd_hdr.options);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len() + CommHdr::hdr_len();
+        let instr = Cmd::Send;
+        let options = *CmdOpt::empty().set_notify().set_block();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -280,8 +285,9 @@ mod tests {
         let buf_len: usize = write_len + 4;
         let mut buffer = vec![0xFF; buf_len as usize];
 
-        // Extract values.
-        let (msg_type, length) = (request.cqc_hdr.msg_type, request.cqc_hdr.length);
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Hello);
+        let length = 0;
 
         // Big-endian
         let expected: Vec<u8> = vec![
