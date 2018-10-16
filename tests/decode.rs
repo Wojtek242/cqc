@@ -246,7 +246,7 @@ mod tests {
     // This should return an Error and thus panic on unwrap.
     #[test]
     #[should_panic(expected = "Response length insufficient to hold a Notify Header")]
-    fn invalid_type_decode() {
+    fn invalid_len_decode() {
         let cqc_type = Tp::NewOk;
         let length: u32 = NotifyHdr::hdr_len() - 1;
 
