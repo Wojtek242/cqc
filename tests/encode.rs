@@ -2,7 +2,7 @@ extern crate cqc;
 
 #[cfg(test)]
 mod tests {
-    use cqc::{Encoder, Request};
+    use cqc::Encoder;
     use cqc::builder::{Builder, RemoteId};
     use cqc::hdr::*;
 
