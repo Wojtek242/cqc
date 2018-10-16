@@ -334,6 +334,11 @@ impl Encoder {
 
         len
     }
+
+    /// Encode a CQC request packet into a newly allocated vector of bytes.
+    pub fn into_vec(&self, request: &Request) -> Vec<u8> {
+        self.config.serialize(&request).unwrap()
+    }
 }
 
 /// # Packet decoder.
