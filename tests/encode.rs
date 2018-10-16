@@ -3,7 +3,7 @@ extern crate cqc;
 #[cfg(test)]
 mod tests {
     use cqc::{Encoder, Request};
-    use cqc::builder::RemoteId;
+    use cqc::builder::{Builder, RemoteId};
     use cqc::hdr::*;
 
     macro_rules! get_byte_16 {
@@ -30,7 +30,8 @@ mod tests {
     // Encode a request packet that only has a CQC header.
     #[test]
     fn cqc_hdr_encode() {
-        let request = Request::hello(APP_ID);
+        let builder = Builder::new(APP_ID);
+        let request = builder.hello();
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
@@ -59,8 +60,8 @@ mod tests {
     // Encode a packet that has a CMD header, but no XTRA header.
     #[test]
     fn cmd_hdr_encode() {
-        let mut request = Request::command(APP_ID);
-        request.cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
+        let builder = Builder::new(APP_ID);
+        let request = builder.cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
@@ -97,8 +98,8 @@ mod tests {
     // Encode a packet with a CMD and ROT headers.
     #[test]
     fn rot_hdr_encode() {
-        let mut request = Request::command(APP_ID);
-        request.cmd_rot_x(QUBIT_ID, *CmdOpt::empty().set_notify().set_block(), STEP);
+        let builder = Builder::new(APP_ID);
+        let request = builder.cmd_rot_x(QUBIT_ID, *CmdOpt::empty().set_notify().set_block(), STEP);
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
@@ -137,8 +138,8 @@ mod tests {
     // Encode a packet with a CMD and QUBIT headers.
     #[test]
     fn qubit_hdr_encode() {
-        let mut request = Request::command(APP_ID);
-        request.cmd_cnot(
+        let builder = Builder::new(APP_ID);
+        let request = builder.cmd_cnot(
             QUBIT_ID,
             *CmdOpt::empty().set_notify().set_block(),
             EXTRA_QUBIT_ID,
@@ -182,8 +183,8 @@ mod tests {
     // Encode a packet with a CMD and COMM headers.
     #[test]
     fn comm_hdr_encode() {
-        let mut request = Request::command(APP_ID);
-        request.cmd_send(
+        let builder = Builder::new(APP_ID);
+        let request = builder.cmd_send(
             QUBIT_ID,
             *CmdOpt::empty().set_notify().set_block(),
             RemoteId {
@@ -238,7 +239,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "assertion failed: buffer.len() >= len")]
     fn cqc_hdr_buf_too_small() {
-        let request = Request::hello(APP_ID);
+        let builder = Builder::new(APP_ID);
+        let request = builder.hello();
 
         // Buffer to write into.
         let mut buffer = vec![0xFF; (request.len() - 1) as usize];
@@ -254,8 +256,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "assertion failed: buffer.len() >= len")]
     fn cmd_hdr_buf_too_small() {
-        let mut request = Request::hello(APP_ID);
-        request.cmd_i(QUBIT_ID, CmdOpt::empty());
+        let builder = Builder::new(APP_ID);
+        let request = builder.cmd_i(QUBIT_ID, CmdOpt::empty());
 
         // Buffer to write into.
         let mut buffer = vec![0xFF; (request.len() - 1) as usize];
@@ -270,7 +272,8 @@ mod tests {
     // be untouched.
     #[test]
     fn buf_too_large() {
-        let request = Request::hello(APP_ID);
+        let builder = Builder::new(APP_ID);
+        let request = builder.hello();
 
         // Buffer to write into.
         let write_len: usize = request.len() as usize;

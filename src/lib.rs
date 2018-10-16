@@ -1,4 +1,4 @@
-//! # CQC Encoder/Decoder
+//! # CQC Interface Library
 //!
 //! The Classical-Quantum Combiner (CQC) interface is used to program quantum
 //! networking nodes to create, transmit, and manipulate qubits.
