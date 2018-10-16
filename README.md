@@ -24,7 +24,8 @@ The following goals drive the design of the `cqc` crate:
 
   The second goal is achieved by using Rust's typing system as much as
   possible, especially enums for fields with only a small set of possible
-  values.
+  values.  Furthermore a `builder` module is provided which guarantees correct
+  CQC packets.
 
 - Decoding should raise errors if unrecognised values are detected
 
