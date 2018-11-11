@@ -6,6 +6,9 @@
 //! packets built exclusively with this API are guaranteed to be correct.
 //!
 //! Currently only client-to-server packets are supported.
+//!
+//! This module is to be used in conjunction with the CQC interface
+//! documentation available in the `hdr` module.
 
 use hdr::*;
 use {ReqCmd, Request, XtraHdr};

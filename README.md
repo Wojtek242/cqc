@@ -5,10 +5,102 @@ CQC
 [![Documentation](https://docs.rs/cqc/badge.svg)](https://docs.rs/cqc)
 ![License](https://img.shields.io/crates/l/cqc.svg)
 
-A Rust implementation of the [CQC
-interface](https://stephaniewehner.github.io/SimulaQron/PreBetaDocs/CQCInterface.html).
+A sans-io Rust implementation of the [CQC
+interface](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html).
 
 - [Documentation](https://docs.rs/cqc)
+- [SimulaQron](http://www.simulaqron.org/)
+- [SimulaQron Manual](https://softwarequtech.github.io/SimulaQron/html/GettingStarted.html)
+
+## CQC in action
+
+The following example will create a qubit on one node and send it to another
+node.  Before running the example below start up the SimulaQron nodes with
+`$NETSIM/run/startAll.sh --nrnodes 2`.
+
+```rust
+extern crate bincode;
+extern crate cqc;
+
+use cqc::builder;
+use cqc::hdr;
+use std::net;
+
+fn main() {
+    // Initialise local node `localhost:8803`.
+    let hostname = String::from("localhost");
+    let local_port: u16 = 8803;
+
+    // Set up remote node `127.0.0.1:8804`.
+    let remote_host: u32 = u32::from(net::Ipv4Addr::new(127, 0, 0, 1));
+    let remote_port: u16 = 8804;
+
+    // Initialise application state with ID 10.
+    let app_id: u16 = 10;
+    let builder = builder::Builder::new(app_id);
+    let mut coder = bincode::config();
+    coder.big_endian();
+
+    // Create, and send a qubit from `localhost:8803` to `localhost:8804`.
+    {
+        // Open connection to local node.
+        let stream = net::TcpStream::connect((hostname.as_str(), local_port))
+            .expect("Connect failed");
+
+        // Create the qubit.
+        let request = builder.cmd_new(0, hdr::CmdOpt::empty());
+        coder.serialize_into(&stream, &request).expect(
+            "Sending failed",
+        );
+
+        // Wait for confirmation of creation.
+        let response: cqc::Response = coder.deserialize_from(&stream).expect("Receive failed");
+
+        // Read the created qubit ID.
+        let note = response.notify.get_notify_hdr();
+        let qubit_id = note.qubit_id;
+
+        // Send the qubit to the remote node.
+        let request = builder.cmd_send(
+            qubit_id,
+            *hdr::CmdOpt::empty().set_notify(),
+            builder::RemoteId {
+                remote_app_id: app_id,
+                remote_node: remote_host,
+                remote_port: remote_port,
+            },
+        );
+        coder.serialize_into(&stream, &request).expect(
+            "Sending failed",
+        );
+
+        // Wait for confirmation.
+        let response: cqc::Response = coder.deserialize_from(&stream).expect("Receive failed");
+        assert!(response.cqc_hdr.msg_type.is_done(), "Unexpected response");
+    }
+
+    // Receive the qubit on the remote node, `localhost:8804`.
+    {
+        // Open connection to local node.
+        let stream = net::TcpStream::connect((hostname.as_str(), remote_port))
+            .expect("Connect failed");
+
+        // Send a request to receive a qubit.
+        let request = builder.cmd_recv(0, hdr::CmdOpt::empty());
+        coder.serialize_into(&stream, &request).expect(
+            "Sending failed",
+        );
+
+        // Receive a response.
+        let response: cqc::Response = coder.deserialize_from(&stream).expect("Receive failed");
+        assert!(response.cqc_hdr.msg_type.is_recv(), "Unexpected response");
+        let note = response.notify.get_notify_hdr();
+        let qubit_id = note.qubit_id;
+
+        println!("Received qubit ID: {}", qubit_id);
+    }
+}
+```
 
 ## Design goals
 
@@ -34,14 +126,16 @@ The following goals drive the design of the `cqc` crate:
 
 - No assumption about the user's run-time should be made
 
-  The library is sans-io and only provides a very plain encoder and decoder.
-  The intention is that the user builds packets using the `cqc` library, but
-  I/O is their responsibility.  The `Serialize` and `Deserialize` traits are
-  implemented so that the user can simply use `serde` for encode/decode.
+  The library is sans-io and only provides a very plain encoder and decoder as
+  an example.  The intention is that the user builds packets using the `cqc`
+  library, but I/O is their responsibility.  The `Serialize` and `Deserialize`
+  traits are implemented so that the user can simply use `bincode` for
+  encode/decode.
 
 ## Limitations
 
-Factory and Sequence Headers are not currently fully supported.
+- Factory and Sequence Headers are not currently fully supported.
+- Encode/decode is implemented for client-side operations.
 
 ## Usage
 

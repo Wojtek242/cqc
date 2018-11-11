@@ -3,6 +3,331 @@
 //! This module documents the [CQC Interface
 //! specification](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html)
 //! and defines the necessary constants and header structures.
+//!
+//! # CQC Header
+//!
+//! Every CQC message begins with a CQC header.
+//!
+//! ```text
+//!  0                   1                   2                   3
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |    version    |    msg_type   |             app_id            |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                             length                            |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! version   1 byte     CQC interface version.  Current version is 0.
+//! msg_type  1 byte     Message type.
+//! app_id    2 bytes    Application ID.  Return messages will be tagged
+//!                      appropriately.
+//! length    4 bytes    Total length of the CQC instruction packet.
+//! ```
+//!
+//! A CQC Command Header MUST follow the CQC Header for the following messages:
+//!
+//!  - Command
+//!  - Factory
+//!  - GetTime
+//!
+//! ## CQC Header Message Types
+//!
+//! The supported message types.  They are split into normal types (Tp) and
+//! error types (Err).
+//!
+//! ```text
+//! Type     Name       Meaning
+//! ----     ----       -------
+//!  0       Hello      Alive check.
+//!  1       Command    Execute a command list.
+//!  2       Factory    Start executing command list repeatedly.
+//!  3       Expire     Qubit has expired.
+//!  4       Done       Command execution done.
+//!  5       Recv       Received qubit.
+//!  6       EprOk      Created EPR pair.
+//!  7       MeasOut    Measurement outcome.
+//!  8       GetTime    Get creation time of qubit.
+//!  9       InfTime    Inform about time.
+//!  10      NewOk      Created new qubit.
+//!
+//!  20      General    General purpose error (no details).
+//!  21      NoQubit    No more qubits available.
+//!  22      Unsupp     Command sequence not supported.
+//!  23      Timeout    Timeout.
+//!  24      InUse      Qubit already in use.
+//!  25      Unknown    Unknown qubit ID.
+//! ```
+//!
+//! # CQC Command Header
+//!
+//! A CQC Command Header identifies the specific instruction to execute, as
+//! well as the qubit ID on which to perform this instructions.
+//!
+//! A CQC Command Header MUST follow the CQC Header for the following messages:
+//!
+//!  - Command
+//!  - Factory
+//!  - GetTime
+//!
+//! ```text
+//!  0                   1                   2                   3
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |            qubit_id           |     instr     |    options    |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! qubit_id  2 bytes    Qubit ID to perform the operation on.
+//! instr     1 byte     Instruction to perform.
+//! options   1 byte     Options when executing the command.
+//! ```
+//!
+//! ## Notify
+//!
+//! If the notify option bit is set, each of these commands return a CQC
+//! message Done indicating that execution has completed. Some commands also
+//! return additional messages, as described below:
+//!
+//! - New: Returns a NewOk reply followed by a notify header with the qubit ID.
+//! - Measure(InPlace): Returns a MeasOut message followed by a notify header
+//!                     containing the measurement outcome.
+//! - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
+//! - Epr(Recv): Returns an EprOk reply by an entanglement information header.
+//!
+//! ## CQC Command Header Instruction Types
+//!
+//! The supported CQC instructions.
+//!
+//! ```text
+//! Type     Name            Meaning
+//! ----     ----            -------
+//!  0       I               Identity (do nothing, wait one step).
+//!  1       New             Ask for a new qubit.
+//!  2       Measure         Measure qubit.
+//!  3       MeasureInPlace  Measure qubit in-place.
+//!  4       Reset           Reset qubit to |0>.
+//!  5       Send            Send qubit to another node.
+//!  6       Recv            Ask to receive qubit.
+//!  7       Epr             Create EPR pair with the specified node.
+//!  8       EprRecv         Receive EPR pair.
+//!
+//!  10      X               Pauli X.
+//!  11      Z               Pauli Z.
+//!  12      Y               Pauli Y.
+//!  13      T               T Gate.
+//!  14      RotX            Rotation over angle around X in pi/256 increments.
+//!  15      RotY            Rotation over angle around Y in pi/256 increments.
+//!  16      RotZ            Rotation over angle around Z in pi/256 increments.
+//!  17      H               Hadamard Gate.
+//!  18      K               K Gate - taking computational to Y eigenbasis.
+//!
+//!  20      Cnot            CNOT Gate with this as control.
+//!  21      Cphase          CPHASE Gate with this as control.
+//! ```
+//!
+//! ## CQC Command Header options
+//!
+//! Command options are set as bit flags.
+//!
+//! ```text
+//! Flag     Name    Meaning
+//! ----     ----    -------
+//! 0x01     Notify  Send a notification when command completes.
+//! 0x02     Action  On if there are actions to execute when done.
+//! 0x04     Block   Block until command is done.
+//! 0x08     IfThen  Execute command after done.
+//! ```
+//!
+//! # CQC Sequence Header
+//!
+//! Additional header used to indicate size of a sequence.  Used when sending
+//! multiple commands at once.  It tells the backend how many more messages are
+//! coming.
+//!
+//! ```text
+//!  0
+//!  0 1 2 3 4 5 6 7
+//! +-+-+-+-+-+-+-+-+
+//! |   cmd_length  |
+//! +-+-+-+-+-+-+-+-+
+//!
+//! Field       Length     Meaning
+//! -----       ------     -------
+//! cmd_length  1 byte     Length (in bytes) of messages to come.
+//! ```
+//!
+//! # CQC Rotation Header
+//!
+//! Additional header used to define the rotation angle of a rotation gate.
+//!
+//! ```text
+//!  0
+//!  0 1 2 3 4 5 6 7
+//! +-+-+-+-+-+-+-+-+
+//! |      step     |
+//! +-+-+-+-+-+-+-+-+
+//!
+//! Field       Length     Meaning
+//! -----       ------     -------
+//! step        1 byte     Angle step of rotation (increments of 1/256).
+//! ```
+//!
+//! # CQC Extra Qubit Header
+//!
+//! Additional header used to send the qubit_id of a secondary qubit for two
+//! qubit gates.
+//!
+//! ```text
+//!  0                   1
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |            qubit_id           |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field          Length     Meaning
+//! -----          ------     -------
+//! qubit_id       2 bytes    ID of the target qubit.
+//! ```
+//!
+//! # CQC Communication Header
+//!
+//! Additional header used to send to which node to send information to. Used
+//! in send and EPR commands.
+//!
+//!
+//! ```text
+//!  0                   1                   2                   3
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |          remote_app_id        |         remote_node
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!             remote_node         |         remote_port           |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field          Length     Meaning
+//! -----          ------     -------
+//! remote_app_id  2 bytes    Remote application ID.
+//! remote_node    4 bytes    IP of the remote node (IPv4).
+//! remote_port    2 bytes    Port of the remote node for sending classical
+//!                           control info.
+//! ```
+//!
+//! # CQC Factory Header
+//!
+//! Additional header used to send factory information. Factory commands are
+//! used to tell the backend to do the following command or a sequence of
+//! commands multiple times.
+//!
+//! ```text
+//!  0                   1
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |    num_iter   |    options    |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field          Length     Meaning
+//! -----          ------     -------
+//! num_iter       1 byte     Number of iterations to do the sequence.
+//! options        1 byte     Options when executing the factory.
+//! ```
+//!
+//! ## CQC Factory Header options
+//!
+//! Factory options are set as bit flags.
+//!
+//! ```text
+//! Flag     Name    Meaning
+//! ----     ----    -------
+//! 0x01     Notify  Send a notification when command completes.
+//! 0x04     Block   Block until factory is done.
+//! ```
+//!
+//! # CQC Notify Header
+//!
+//! In some cases, the CQC Backend will return notifications to the client that
+//! require additional information.  For example, where a qubit was received
+//! from, the lifetime of a qubit, the measurement outcome etc.
+//!
+//! ```text
+//!  0                   1                   2                   3
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |            qubit_id           |         remote_app_id         |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                          remote_node                          |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                           timestamp                           |
+//! |                                                               |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |          remote_port          |    outcome    |     align     |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field          Length     Meaning
+//! -----          ------     -------
+//! qubit_id       2 bytes    ID of the received qubit.
+//! remote_app_id  2 bytes    Remote application ID.
+//! remote_node    4 bytes    IP of the remote node (IPv4).
+//! timestamp      8 bytes    Time of creation.
+//! remote_port    2 bytes    Port of the remote node for sending classical
+//!                           control info.
+//! outcome        1 byte     Measurement outcome.
+//! align          1 byte     4 byte alignment.
+//! ```
+//!
+//! # CQC Entanglement Information Header
+//!
+//! When an EPR-pair is created the CQC Backend will return information about
+//! the entanglement which can be used in a entanglement management protocol.
+//! The entanglement information header contains information about the parties
+//! that share the EPR-pair, the time of creation, how good the entanglement is
+//! (goodness).  Furthermore, the entanglement information header contain a
+//! entanglement ID (id_AB) which can be used to keep track of the entanglement
+//! in the network.  The entanglement ID is incremented with respect to the
+//! pair of nodes and who initialized the entanglement (DF).  For this reason
+//! the entanglement ID together with the nodes and the directionality flag
+//! gives a unique way to identify the entanglement in the network.
+//!
+//! ```text
+//!  0                   1                   2                   3
+//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                             node_A                            |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |             port_A            |            app_id_A           |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                             node_B                            |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |             port_B            |            app_id_B           |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                             id_AB                             |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                           timestamp                           |
+//! |                                                               |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |                              ToG                              |
+//! |                                                               |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//! |            goodness           |       DF      |     align     |
+//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//!
+//! Field      Length     Meaning
+//! -----      ------     -------
+//! node_A     4 bytes    IP of this node.
+//! port_A     2 bytes    Port of this node.
+//! app_id_A   2 bytes    App ID of this node.
+//! node_B     4 bytes    IP of other node.
+//! port_B     2 bytes    Port of other node.
+//! app_id_B   2 bytes    App ID of other node.
+//! id_AB      4 bytes    Entanglement ID.
+//! timestamp  8 bytes    Time of creation.
+//! ToG        8 bytes    Time of goodness.
+//! goodness   2 bytes    Goodness (estimate of the fidelity of state).
+//! DF         1 byte     Directionality flag (0=Mid, 1=node_A, 2=node_B).
+//! align      1 byte     4 byte alignment.
+//! ```
 
 extern crate serde;
 
