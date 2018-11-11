@@ -8,9 +8,49 @@ CQC
 A sans-io Rust implementation of the [CQC
 interface](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html).
 
+The Classical-Quantum Combiner (CQC) interface is used to program quantum
+networking nodes to create, transmit, and manipulate qubits.
+
+The CQC interface will be used to interact with the Dutch demonstration
+network, currently under development at QuTech in the Netherlands. At present,
+the CQC interface is supported only by the quantum network simulator
+[Simulaqron](http://www.simulaqron.org/).
+
 - [Documentation](https://docs.rs/cqc)
 - [SimulaQron](http://www.simulaqron.org/)
 - [SimulaQron Manual](https://softwarequtech.github.io/SimulaQron/html/GettingStarted.html)
+
+## Principle of Operation
+
+This library provides two functions:
+
+1) Build valid CQC packets.
+
+2) Encode/decode to/from binary format.  It is left to the user to decide how
+best to fit I/O in their framework.
+
+### Building Packets
+
+This crate offers two ways of building packets
+
+1) Manually - one can manually build packets using the header definitions and
+documentation provided in the `hdr` module.
+
+2) Using the `builder` module - the builder module provides a simple API for
+generating CQC packets.  It should be used in conjunction with the CQC
+interface documentation in the `hdr` module.
+
+### Encoding/decoding packets
+
+All headers in the `hdr` module implement `serde`'s `Serialize` and
+`Deserialize` traits which mean they can be directly used as input to
+`bincode`.  The `Encoder` and `Decoder` impls provide an example.
+
+The `builder` module returns a `Request` struct which implements `Serialize`
+which can be used with `bincode`.
+
+The library provides a `Response` struct which implements `Deserialize` and can
+be used to deserialize any response from the SimulaQron server.
 
 ## CQC in action
 
