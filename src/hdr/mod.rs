@@ -19,7 +19,7 @@
 //!
 //! Field     Length     Meaning
 //! -----     ------     -------
-//! version   1 byte     CQC interface version.  Current version is 0.
+//! version   1 byte     CQC interface version.  Current version is 2.
 //! msg_type  1 byte     Message type.
 //! app_id    2 bytes    Application ID.  Return messages will be tagged
 //!                      appropriately.
@@ -91,11 +91,14 @@
 //! message Done indicating that execution has completed. Some commands also
 //! return additional messages, as described below:
 //!
-//! - New: Returns a NewOk reply followed by a notify header with the qubit ID.
-//! - Measure(InPlace): Returns a MeasOut message followed by a notify header
-//!                     containing the measurement outcome.
-//! - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
-//! - Epr(Recv): Returns an EprOk reply by an entanglement information header.
+//! - New: Returns a NewOk reply followed by an Extra Qubit header with the
+//!        qubit ID.
+//! - Measure(InPlace): Returns a MeasOut message followed by a Measurement
+//!                     Outcome header containing the measurement outcome.
+//! - Recv: Returns a Recv reply followed by an Extra Qubit header with the
+//!         qubit ID.
+//! - Epr(Recv): Returns an EprOk reply by an Extra Qubit header and an
+//!              Entanglement Information header.
 //!
 //! ## CQC Command Header Instruction Types
 //!
@@ -197,22 +200,21 @@
 //! Additional header used to send to which node to send information to. Used
 //! in send and EPR commands.
 //!
-//!
 //! ```text
 //!  0                   1                   2                   3
 //!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 //! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |          remote_app_id        |         remote_node
+//! |          remote_app_id        |         remote_port           |
 //! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!             remote_node         |         remote_port           |
+//! |                          remote_node                          |
 //! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //!
 //! Field          Length     Meaning
 //! -----          ------     -------
 //! remote_app_id  2 bytes    Remote application ID.
-//! remote_node    4 bytes    IP of the remote node (IPv4).
 //! remote_port    2 bytes    Port of the remote node for sending classical
 //!                           control info.
+//! remote_node    4 bytes    IP of the remote node (IPv4).
 //! ```
 //!
 //! # CQC Factory Header
@@ -245,36 +247,38 @@
 //! 0x04     Block   Block until factory is done.
 //! ```
 //!
-//! # CQC Notify Header
+//! # CQC Measurement Outcome Header
 //!
-//! In some cases, the CQC Backend will return notifications to the client that
-//! require additional information.  For example, where a qubit was received
-//! from, the lifetime of a qubit, the measurement outcome etc.
+//! Additional header used to send the outcome of a measurement.
+//!
+//! ```text
+//!  0
+//!  0 1 2 3 4 5 6 7
+//! +-+-+-+-+-+-+-+-+
+//! |    meas_out   |
+//! +-+-+-+-+-+-+-+-+
+//!
+//! Field       Length     Meaning
+//! -----       ------     -------
+//! meas_out    1 byte     Measurement outcome.
+//! ```
+//!
+//! # CQC Time Info Header
+//!
+//! Additional header used to send time information in response to the GetTime
+//! command.
 //!
 //! ```text
 //!  0                   1                   2                   3
 //!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 //! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |            qubit_id           |         remote_app_id         |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                          remote_node                          |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                           timestamp                           |
+//! |                           datetime                            |
 //! |                                                               |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |          remote_port          |    outcome    |     align     |
 //! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //!
 //! Field          Length     Meaning
 //! -----          ------     -------
-//! qubit_id       2 bytes    ID of the received qubit.
-//! remote_app_id  2 bytes    Remote application ID.
-//! remote_node    4 bytes    IP of the remote node (IPv4).
-//! timestamp      8 bytes    Time of creation.
-//! remote_port    2 bytes    Port of the remote node for sending classical
-//!                           control info.
-//! outcome        1 byte     Measurement outcome.
-//! align          1 byte     4 byte alignment.
+//! datetime       8 bytes    Time of creation.
 //! ```
 //!
 //! # CQC Entanglement Information Header
@@ -342,12 +346,12 @@ mod macros;
 
 /// # CQC Version
 ///
-/// The current supported versions are: 1.
-/// The currently unsupported versions are: 0.
+/// The current supported versions are: 2.
+/// The currently unsupported versions are: 0, 1.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Version {
-    V1 = 1,
+    V2 = 2,
 }
 
 impl Version {
@@ -356,7 +360,7 @@ impl Version {
     #[inline]
     pub fn get(value: u8) -> Option<Version> {
         let version = match value {
-            1 => Version::V1,
+            2 => Version::V2,
             _ => return None,
         };
 
@@ -642,11 +646,14 @@ pub enum Err {
 /// message Done indicating that execution has completed. Some commands also
 /// return additional messages, as described below:
 ///
-/// - New: Returns a NewOk reply followed by a notify header with the qubit ID.
-/// - Measure(InPlace): Returns a MeasOut message followed by a notify header
-///                     containing the measurement outcome.
-/// - Recv: Returns a Recv reply followed by a notify header with the qubit ID.
-/// - Epr(Recv): Returns an EprOk reply by an entanglement information header.
+/// - New: Returns a NewOk reply followed by an Extra Qubit header with the
+///        qubit ID.
+/// - Measure(InPlace): Returns a MeasOut message followed by a Measurement
+///                     Outcome header containing the measurement outcome.
+/// - Recv: Returns a Recv reply followed by an Extra Qubit header with the
+///         qubit ID.
+/// - Epr(Recv): Returns an EprOk reply by an Extra Qubit header and an
+///              Entanglement Information header.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CmdHdr {
     pub qubit_id: u16,
@@ -865,23 +872,23 @@ def_len!(QubitHdr, 2);
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |          remote_app_id        |         remote_node
+/// |          remote_app_id        |         remote_port           |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///             remote_node         |         remote_port           |
+/// |                          remote_node                          |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///
 /// Field          Length     Meaning
 /// -----          ------     -------
 /// remote_app_id  2 bytes    Remote application ID.
-/// remote_node    4 bytes    IP of the remote node (IPv4).
 /// remote_port    2 bytes    Port of the remote node for sending classical
 ///                           control info.
+/// remote_node    4 bytes    IP of the remote node (IPv4).
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CommHdr {
     pub remote_app_id: u16,
-    pub remote_node: u32,
     pub remote_port: u16,
+    pub remote_node: u32,
 }
 
 def_len!(CommHdr, 8);
@@ -939,49 +946,78 @@ impl FactoryOpt {
 
 serde_option_u8!(FactoryOpt, FactoryOptVisitor, "factory");
 
-/// # CQC Notify Header
+/// # CQC Measurement Outcome Header
 ///
-/// In some cases, the CQC Backend will return notifications to the client that
-/// require additional information.  For example, where a qubit was received
-/// from, the lifetime of a qubit, the measurement outcome etc.
+/// Additional header used to send the outcome of a measurement.
+///
+/// ```text
+///  0
+///  0 1 2 3 4 5 6 7
+/// +-+-+-+-+-+-+-+-+
+/// |    meas_out   |
+/// +-+-+-+-+-+-+-+-+
+///
+/// Field       Length     Meaning
+/// -----       ------     -------
+/// meas_out    1 byte     Measurement outcome.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct MeasOutHdr {
+    pub meas_out: MeasOut,
+}
+
+def_len!(MeasOutHdr, 1);
+
+/// # CQC Measurement outcome
+///
+/// There are only two possible outcome values: 0 or 1.
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum MeasOut {
+    Zero = 0,
+    One = 1,
+}
+
+impl MeasOut {
+    /// Convert an 8-bit value to a measurement outcome value.  Returns `None`
+    /// if the value does not correspond to a valid outcome.
+    #[inline]
+    pub fn get(value: u8) -> Option<MeasOut> {
+        let meas_out = match value {
+            0 => MeasOut::Zero,
+            1 => MeasOut::One,
+            _ => return None,
+        };
+
+        Some(meas_out)
+    }
+}
+
+serde_enum_u8!(MeasOut, MeasOutVisitor, "Measurement Outcome");
+
+/// # CQC Time Info Header
+///
+/// Additional header used to send time information in response to the GetTime
+/// command.
 ///
 /// ```text
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |            qubit_id           |         remote_app_id         |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                          remote_node                          |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                           timestamp                           |
+/// |                           datetime                            |
 /// |                                                               |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |          remote_port          |    outcome    |     align     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///
 /// Field          Length     Meaning
 /// -----          ------     -------
-/// qubit_id       2 bytes    ID of the received qubit.
-/// remote_app_id  2 bytes    Remote application ID.
-/// remote_node    4 bytes    IP of the remote node (IPv4).
-/// timestamp      8 bytes    Time of creation.
-/// remote_port    2 bytes    Port of the remote node for sending classical
-///                           control info.
-/// outcome        1 byte     Measurement outcome.
-/// align          1 byte     4 byte alignment.
+/// datetime       8 bytes    Time of creation.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct NotifyHdr {
-    pub qubit_id: u16,
-    pub remote_ap_id: u16,
-    pub remote_node: u32,
-    pub timestamp: u64,
-    pub remote_port: u16,
-    pub outcome: u8,
-    pub align: u8,
+pub struct TimeInfoHdr {
+    pub datetime: u64,
 }
 
-def_len!(NotifyHdr, 20);
+def_len!(TimeInfoHdr, 8);
 
 /// # CQC Entanglement Information Header
 ///
@@ -1066,7 +1102,7 @@ mod tests {
     #[test]
     fn cqc_hdr_ser_size() {
         let cqc_hdr = CqcHdr {
-            version: Version::V1,
+            version: Version::V2,
             msg_type: MsgType::Tp(Tp::Hello),
             app_id: 0,
             length: 0,
@@ -1125,19 +1161,24 @@ mod tests {
     }
 
     #[test]
-    fn notify_hdr_ser_size() {
-        let notify_hdr = NotifyHdr {
-            qubit_id: 0,
-            remote_ap_id: 0,
-            remote_node: 0,
-            timestamp: 0,
-            remote_port: 0,
-            outcome: 0,
-            align: 0,
+    fn meas_out_hdr_ser_size() {
+        let meas_out_hdr = MeasOutHdr {
+            meas_out: MeasOut::Zero,
         };
         assert_eq!(
-            serialize(&notify_hdr).unwrap().len() as u32,
-            notify_hdr.len()
+            serialize(&meas_out_hdr).unwrap().len() as u32,
+            meas_out_hdr.len()
+        );
+    }
+
+    #[test]
+    fn time_info_hdr_ser_size() {
+        let time_info_hdr = TimeInfoHdr {
+            datetime: 0,
+        };
+        assert_eq!(
+            serialize(&time_info_hdr).unwrap().len() as u32,
+            time_info_hdr.len()
         );
     }
 

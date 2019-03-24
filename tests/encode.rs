@@ -43,7 +43,7 @@ mod tests {
 
         // Big-endian
         let expected: Vec<u8> = vec![
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -77,7 +77,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -116,7 +116,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -161,7 +161,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -193,8 +193,8 @@ mod tests {
             *CmdOpt::empty().set_notify().set_block(),
             RemoteId {
                 remote_app_id: REMOTE_APP_ID,
-                remote_node: REMOTE_NODE,
                 remote_port: REMOTE_PORT,
+                remote_node: REMOTE_NODE,
             },
         );
 
@@ -211,7 +211,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             // CQC header
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -227,12 +227,12 @@ mod tests {
             // XTRA header
             get_byte_16!(REMOTE_APP_ID, 0),
             get_byte_16!(REMOTE_APP_ID, 1),
+            get_byte_16!(REMOTE_PORT, 0),
+            get_byte_16!(REMOTE_PORT, 1),
             get_byte_32!(REMOTE_NODE, 0),
             get_byte_32!(REMOTE_NODE, 1),
             get_byte_32!(REMOTE_NODE, 2),
             get_byte_32!(REMOTE_NODE, 3),
-            get_byte_16!(REMOTE_PORT, 0),
-            get_byte_16!(REMOTE_PORT, 1),
         ];
 
         let encoder = Encoder::new();
@@ -291,7 +291,7 @@ mod tests {
 
         // Big-endian
         let expected: Vec<u8> = vec![
-            Version::V1 as u8,
+            Version::V2 as u8,
             From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),

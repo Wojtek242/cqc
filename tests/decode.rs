@@ -3,7 +3,7 @@ extern crate cqc;
 #[cfg(test)]
 mod tests {
     use cqc::hdr::*;
-    use cqc::{Decoder, Response, RspInfo};
+    use cqc::{Decoder, Response, RspInfo, EprInfo};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -45,7 +45,7 @@ mod tests {
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: Version::V1,
+            version: Version::V2,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
@@ -59,7 +59,7 @@ mod tests {
 
         // Big-endian
         let packet: Vec<u8> = vec![
-            Version::V1 as u8,
+            Version::V2 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -74,42 +74,83 @@ mod tests {
         assert_eq!(result, response);
     }
 
-    // Decode a response packet that has CQC and Notify headers.
+    // Decode a response with an Extra Qubit header.
     #[test]
-    fn notify_hdr_decode() {
+    fn qubit_rsp_decode() {
         let cqc_type = Tp::NewOk;
         let msg_type = MsgType::Tp(cqc_type);
-        let length: u32 = NotifyHdr::hdr_len();
+        let length: u32 = QubitHdr::hdr_len();
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: Version::V1,
+            version: Version::V2,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
         };
 
         // The Notify header.
-        let notify_hdr = NotifyHdr {
+        let qubit_hdr = QubitHdr {
             qubit_id: QUBIT_ID,
-            remote_ap_id: 0,
-            remote_node: 0,
-            timestamp: 0,
-            remote_port: 0,
-            outcome: 0,
-            align: 0,
         };
 
         // The response.
         let response = Response {
             cqc_hdr,
-            notify: RspInfo::Notify(notify_hdr),
+            notify: RspInfo::Qubit(qubit_hdr),
         };
 
         // Big-endian
         let packet: Vec<u8> = vec![
             // CQC header.
-            Version::V1 as u8,
+            Version::V2 as u8,
+            cqc_type as u8,
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // Qubit header.
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+        ];
+
+        let decoder = Decoder::new();
+        let result = decoder.decode(&packet[..]).unwrap();
+        assert_eq!(result, response);
+    }
+
+    // Decode a response packet with a Measurement Outcome header.
+    #[test]
+    fn meas_out_rsp_decode() {
+        let cqc_type = Tp::MeasOut;
+        let msg_type = MsgType::Tp(cqc_type);
+        let length: u32 = MeasOutHdr::hdr_len();
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: Version::V2,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        // The Notify header.
+        let meas_out_hdr = MeasOutHdr {
+            meas_out: MeasOut::One,
+        };
+
+        // The response.
+        let response = Response {
+            cqc_hdr,
+            notify: RspInfo::MeasOut(meas_out_hdr),
+        };
+
+        // Big-endian
+        let packet: Vec<u8> = vec![
+            // CQC header.
+            Version::V2 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -118,26 +159,7 @@ mod tests {
             get_byte_32!(length, 2),
             get_byte_32!(length, 3),
             // Notify header.
-            get_byte_16!(QUBIT_ID, 0),
-            get_byte_16!(QUBIT_ID, 1),
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
+            0x01,
         ];
 
         let decoder = Decoder::new();
@@ -150,14 +172,19 @@ mod tests {
     fn ent_info_hdr_decode() {
         let cqc_type = Tp::EprOk;
         let msg_type = MsgType::Tp(cqc_type);
-        let length: u32 = EntInfoHdr::hdr_len();
+        let length: u32 = QubitHdr::hdr_len() + EntInfoHdr::hdr_len();
 
         // The CQC header.
         let cqc_hdr = CqcHdr {
-            version: Version::V1,
+            version: Version::V2,
             msg_type: msg_type,
             app_id: APP_ID,
             length: length,
+        };
+
+        // The Extra Qubit header.
+        let qubit_hdr = QubitHdr {
+            qubit_id: QUBIT_ID,
         };
 
         // The Entanglement Info header.
@@ -176,16 +203,21 @@ mod tests {
             align: 0,
         };
 
+        let epr_info = EprInfo {
+            qubit_hdr,
+            ent_info_hdr,
+        };
+
         // The response.
         let response = Response {
             cqc_hdr,
-            notify: RspInfo::EntInfo(ent_info_hdr),
+            notify: RspInfo::Epr(epr_info),
         };
 
         // Big-endian
         let packet: Vec<u8> = vec![
             // CQC header.
-            Version::V1 as u8,
+            Version::V2 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -193,6 +225,9 @@ mod tests {
             get_byte_32!(length, 1),
             get_byte_32!(length, 2),
             get_byte_32!(length, 3),
+            // Qubit header.
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
             // Entanglement Info header.
             get_byte_32!(NODE, 0),
             get_byte_32!(NODE, 1),
@@ -245,14 +280,14 @@ mod tests {
     // follow-up headers, but it is too short to hold the expected header.
     // This should return an Error and thus panic on unwrap.
     #[test]
-    #[should_panic(expected = "Response length insufficient to hold a Notify Header")]
+    #[should_panic(expected = "Response length insufficient to hold an Extra Qubit Header")]
     fn invalid_len_decode() {
         let cqc_type = Tp::NewOk;
-        let length: u32 = NotifyHdr::hdr_len() - 1;
+        let length: u32 = QubitHdr::hdr_len() - 1;
 
         let packet: Vec<u8> = vec![
             // CQC header.
-            Version::V1 as u8,
+            Version::V2 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
@@ -263,24 +298,6 @@ mod tests {
             // Notify header.
             get_byte_16!(QUBIT_ID, 0),
             get_byte_16!(QUBIT_ID, 1),
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
         ];
 
         let decoder = Decoder::new();
@@ -296,7 +313,7 @@ mod tests {
         let length: u32 = 0;
 
         let packet: Vec<u8> = vec![
-            Version::V1 as u8 + 1,
+            Version::V2 as u8 + 1,
             cqc_type as u8,
             get_byte_16!(APP_ID, 1),
             get_byte_16!(APP_ID, 0),
@@ -318,7 +335,7 @@ mod tests {
         let length: u32 = 0;
 
         let packet: Vec<u8> = vec![
-            Version::V1 as u8,
+            Version::V2 as u8,
             0xFF,
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),

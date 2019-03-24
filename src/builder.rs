@@ -36,7 +36,7 @@ impl Builder {
     /// Build a basic CQC packet.
     fn build(&self, msg_type: MsgType, req_cmd: Option<ReqCmd>) -> Request {
         let cqc_hdr = CqcHdr {
-            version: Version::V1,
+            version: Version::V2,
             msg_type: msg_type,
             app_id: self.app_id,
             length: match req_cmd {
