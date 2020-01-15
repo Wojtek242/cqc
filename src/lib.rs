@@ -195,10 +195,7 @@ pub struct Request {
 impl Request {
     pub fn len(&self) -> u32 {
         CqcHdr::hdr_len()
-            + match self.req_cmd {
-                Some(ref r) => r.len(),
-                None => 0,
-            }
+            + self.req_cmd.as_ref().map(|hdr| hdr.len()).unwrap_or(0)
     }
 }
 
@@ -242,14 +239,12 @@ impl Serialize for ReqCmd {
     {
         let mut s = serializer.serialize_struct("ReqCmd", 2)?;
         s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
-        if self.xtra_hdr.is_some() {
-            match self.xtra_hdr {
-                XtraHdr::Rot(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::Qubit(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::Comm(ref h) => s.serialize_field("xtra_hdr", h)?,
-                XtraHdr::None => panic!("Do not serialize XtraHdr::None"),
-            };
-        }
+        match self.xtra_hdr {
+            XtraHdr::Rot(ref h) => s.serialize_field("xtra_rot_hdr", h)?,
+            XtraHdr::Qubit(ref h) => s.serialize_field("xtra_qubit_hdr", h)?,
+            XtraHdr::Comm(ref h) => s.serialize_field("xtra_comm_hdr", h)?,
+            XtraHdr::None => (),
+        };
         s.end()
     }
 }
@@ -309,6 +304,81 @@ pub struct Response {
     pub notify: RspInfo,
 }
 
+impl<'de> Deserialize<'de> for Response {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Response, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        const FIELDS: &'static [&'static str] = &["cqc_hdr", "notify"];
+        deserializer.deserialize_struct("Response", FIELDS, ResponseVisitor)
+    }
+}
+
+struct ResponseVisitor;
+
+impl<'de> Visitor<'de> for ResponseVisitor {
+    type Value = Response;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a valid CQC response packet")
+    }
+
+    #[inline]
+    fn visit_seq<V>(self, mut seq: V) -> Result<Response, V::Error>
+    where
+        V: SeqAccess<'de>,
+    {
+        let cqc_hdr: CqcHdr = seq
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+        let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
+
+        if length == 0 {
+            return Ok(Response {
+                cqc_hdr,
+                notify: RspInfo::None,
+            });
+        }
+
+        let notify = match msg_type {
+            MsgType::Tp(Tp::Recv) | MsgType::Tp(Tp::NewOk) => {
+                if length < QubitHdr::hdr_len() {
+                    return Err(de::Error::missing_field("QubitHdr"));
+                }
+                let qubit_hdr: QubitHdr = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                RspInfo::Qubit(qubit_hdr)
+            }
+            MsgType::Tp(Tp::MeasOut) => {
+                if length < MeasOutHdr::hdr_len() {
+                    return Err(de::Error::missing_field("MeasOutHdr"));
+                }
+                let meas_out_hdr: MeasOutHdr = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                RspInfo::MeasOut(meas_out_hdr)
+            }
+            MsgType::Tp(Tp::EprOk) => {
+                if length < QubitHdr::hdr_len() + EntInfoHdr::hdr_len() {
+                    return Err(de::Error::missing_field(
+                        "QubitHdr + EntInfoHdr",
+                    ));
+                }
+                let epr_info: EprInfo = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                RspInfo::Epr(epr_info)
+            }
+            _ => RspInfo::None,
+        };
+
+        Ok(Response { cqc_hdr, notify })
+    }
+}
+
 /// # Response Info
 ///
 /// Some responses from a CQC backed will be followed by either a Notify Header
@@ -351,94 +421,6 @@ impl RspInfo {
     }
 }
 
-struct ResponseVisitor;
-
-impl<'de> Visitor<'de> for ResponseVisitor {
-    type Value = Response;
-
-    #[inline]
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid CQC response packet")
-    }
-
-    #[inline]
-    fn visit_seq<V>(self, mut seq: V) -> Result<Response, V::Error>
-    where
-        V: SeqAccess<'de>,
-    {
-        let cqc_hdr: CqcHdr = seq
-            .next_element()?
-            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-
-        if cqc_hdr.length == 0 {
-            return Ok(Response {
-                cqc_hdr,
-                notify: RspInfo::None,
-            });
-        }
-
-        let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
-        let notify = match msg_type {
-            MsgType::Tp(Tp::Recv) | MsgType::Tp(Tp::NewOk) => {
-                if length < QubitHdr::hdr_len() {
-                    return Err(de::Error::invalid_value(
-                        de::Unexpected::Other(
-                            "Response length insufficient to hold an Extra Qubit Header",
-                        ),
-                        &self,
-                    ));
-                }
-                let qubit_hdr: QubitHdr = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::Qubit(qubit_hdr)
-            }
-            MsgType::Tp(Tp::MeasOut) => {
-                if length < MeasOutHdr::hdr_len() {
-                    return Err(de::Error::invalid_value(
-                        de::Unexpected::Other(
-                            "Response length insufficient to hold a Notify Header",
-                        ),
-                        &self,
-                    ));
-                }
-                let meas_out_hdr: MeasOutHdr = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::MeasOut(meas_out_hdr)
-            }
-            MsgType::Tp(Tp::EprOk) => {
-                if length < QubitHdr::hdr_len() + EntInfoHdr::hdr_len() {
-                    return Err(de::Error::invalid_value(
-                        de::Unexpected::Other(
-                            "Response length insufficient to hold an Entanglement Info Header",
-                        ),
-                        &self,
-                    ));
-                }
-                let epr_info: EprInfo = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::Epr(epr_info)
-            }
-            _ => RspInfo::None,
-        };
-
-        Ok(Response { cqc_hdr, notify })
-    }
-}
-
-impl<'de> Deserialize<'de> for Response {
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<Response, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        const FIELDS: &'static [&'static str] = &["cqc_hdr", "notify"];
-        deserializer.deserialize_struct("Response", FIELDS, ResponseVisitor)
-    }
-}
-
 /// # EPR Info
 ///
 /// A response about an EPR pair consists of an Extra Qubit header and an
@@ -470,7 +452,11 @@ impl Encoder {
     ///
     /// If the provided buffer is not large enough to encode the request
     /// `encode_request` will panic.
-    pub fn encode<'buf>(&self, request: &Request, buffer: &'buf mut [u8]) -> usize {
+    pub fn encode<'buf>(
+        &self,
+        request: &Request,
+        buffer: &'buf mut [u8],
+    ) -> usize {
         let len = request.len() as usize;
         assert!(buffer.len() >= len);
         self.config

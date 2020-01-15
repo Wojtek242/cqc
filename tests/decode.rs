@@ -3,7 +3,7 @@ extern crate cqc;
 #[cfg(test)]
 mod tests {
     use cqc::hdr::*;
-    use cqc::{Decoder, Response, RspInfo, EprInfo};
+    use cqc::{Decoder, EprInfo, Response, RspInfo};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -90,9 +90,7 @@ mod tests {
         };
 
         // The Notify header.
-        let qubit_hdr = QubitHdr {
-            qubit_id: QUBIT_ID,
-        };
+        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
 
         // The response.
         let response = Response {
@@ -183,9 +181,7 @@ mod tests {
         };
 
         // The Extra Qubit header.
-        let qubit_hdr = QubitHdr {
-            qubit_id: QUBIT_ID,
-        };
+        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
 
         // The Entanglement Info header.
         let ent_info_hdr = EntInfoHdr {
@@ -280,7 +276,7 @@ mod tests {
     // follow-up headers, but it is too short to hold the expected header.
     // This should return an Error and thus panic on unwrap.
     #[test]
-    #[should_panic(expected = "Response length insufficient to hold an Extra Qubit Header")]
+    #[should_panic(expected = "missing field `QubitHdr`")]
     fn invalid_len_decode() {
         let cqc_type = Tp::NewOk;
         let length: u32 = QubitHdr::hdr_len() - 1;

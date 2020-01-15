@@ -2,9 +2,9 @@ extern crate cqc;
 
 #[cfg(test)]
 mod tests {
-    use cqc::Encoder;
     use cqc::builder::{Builder, RemoteId};
     use cqc::hdr::*;
+    use cqc::Encoder;
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -62,7 +62,8 @@ mod tests {
     #[test]
     fn cmd_hdr_encode() {
         let builder = Builder::new(APP_ID);
-        let request = builder.cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
+        let request = builder
+            .cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
@@ -101,7 +102,11 @@ mod tests {
     #[test]
     fn rot_hdr_encode() {
         let builder = Builder::new(APP_ID);
-        let request = builder.cmd_rot_x(QUBIT_ID, *CmdOpt::empty().set_notify().set_block(), STEP);
+        let request = builder.cmd_rot_x(
+            QUBIT_ID,
+            *CmdOpt::empty().set_notify().set_block(),
+            STEP,
+        );
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;

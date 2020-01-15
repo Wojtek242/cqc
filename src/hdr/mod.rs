@@ -577,17 +577,17 @@ deserialize_enum_u8!(MsgType, MsgTypeVisitor, "CQC message type");
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Tp {
-    Hello = 0, // Alive check.
+    Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
     Factory = 2, // Start executing command list repeatedly.
-    Expire = 3, // Qubit has expired.
-    Done = 4, // Command execution done.
-    Recv = 5, // Recevied qubit.
-    EprOk = 6, // Created EPR pair.
+    Expire = 3,  // Qubit has expired.
+    Done = 4,    // Command execution done.
+    Recv = 5,    // Recevied qubit.
+    EprOk = 6,   // Created EPR pair.
     MeasOut = 7, // Measurement outcome.
     GetTime = 8, // Get creation time of qubit.
     InfTime = 9, // Inform about time.
-    NewOk = 10, // Created new qubit.
+    NewOk = 10,  // Created new qubit.
 }
 
 /// # CQC Header Error Message Types
@@ -609,9 +609,9 @@ pub enum Tp {
 pub enum Err {
     General = 20, // General purpose error (no details.
     NoQubit = 21, // No more qubits available.
-    Unsupp = 22, // Command sequence not supported.
+    Unsupp = 22,  // Command sequence not supported.
     Timeout = 23, // Timeout.
-    InUse = 24, // Qubit already in use.
+    InUse = 24,   // Qubit already in use.
     Unknown = 25, // Unknown qubit ID
 }
 
@@ -696,27 +696,27 @@ def_len!(CmdHdr, 4);
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cmd {
-    I = 0, // Identity (do nothing, wait one step).
-    New = 1, // Ask for a new qubit.
-    Measure = 2, // Measure qubit.
+    I = 0,              // Identity (do nothing, wait one step).
+    New = 1,            // Ask for a new qubit.
+    Measure = 2,        // Measure qubit.
     MeasureInplace = 3, // Measure qubit in-place.
-    Reset = 4, // Reset qubit to |0>.
-    Send = 5, // Send qubit to another node.
-    Recv = 6, // Ask to receive qubit.
-    Epr = 7, // Create EPR pair with the specified node.
-    EprRecv = 8, // Receive EPR pair.
+    Reset = 4,          // Reset qubit to |0>.
+    Send = 5,           // Send qubit to another node.
+    Recv = 6,           // Ask to receive qubit.
+    Epr = 7,            // Create EPR pair with the specified node.
+    EprRecv = 8,        // Receive EPR pair.
 
-    X = 10, // Pauli X.
-    Z = 11, // Pauli Z.
-    Y = 12, // Pauli Y.
-    T = 13, // T Gate.
+    X = 10,    // Pauli X.
+    Z = 11,    // Pauli Z.
+    Y = 12,    // Pauli Y.
+    T = 13,    // T Gate.
     RotX = 14, // Rotation over angle around X in pi/256 increments.
     RotY = 15, // Rotation over angle around Y in pi/256 increments.
     RotZ = 16, // Rotation over angle around Z in pi/256 increments.
-    H = 17, // Hadamard Gate.
-    K = 18, // K Gate - taking computational to Y eigenbasis.
+    H = 17,    // Hadamard Gate.
+    K = 18,    // K Gate - taking computational to Y eigenbasis.
 
-    Cnot = 20, // CNOT Gate with this as control.
+    Cnot = 20,   // CNOT Gate with this as control.
     Cphase = 21, // CPHASE Gate with this as control.
 }
 
@@ -1135,7 +1135,10 @@ mod tests {
     #[test]
     fn qubit_hdr_ser_size() {
         let qubit_hdr = QubitHdr { qubit_id: 0 };
-        assert_eq!(serialize(&qubit_hdr).unwrap().len() as u32, qubit_hdr.len());
+        assert_eq!(
+            serialize(&qubit_hdr).unwrap().len() as u32,
+            qubit_hdr.len()
+        );
     }
 
     #[test]
@@ -1173,9 +1176,7 @@ mod tests {
 
     #[test]
     fn time_info_hdr_ser_size() {
-        let time_info_hdr = TimeInfoHdr {
-            datetime: 0,
-        };
+        let time_info_hdr = TimeInfoHdr { datetime: 0 };
         assert_eq!(
             serialize(&time_info_hdr).unwrap().len() as u32,
             time_info_hdr.len()
