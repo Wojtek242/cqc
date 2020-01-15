@@ -94,8 +94,9 @@ impl Builder {
         self.command(self.build_req_cmd(qubit_id, Cmd::Recv, options, XtraHdr::None))
     }
     /// Build an EPR creation command request.
-    pub fn cmd_epr(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(qubit_id, Cmd::Epr, options, XtraHdr::None))
+    pub fn cmd_epr(&self, qubit_id: u16, options: CmdOpt, remote_id: RemoteId) -> Request {
+        let xtra_hdr = self.xtra_remote_node(remote_id);
+        self.command(self.build_req_cmd(qubit_id, Cmd::Epr, options, xtra_hdr))
     }
     /// Build an EPR receive command request.
     pub fn cmd_epr_recv(&self, qubit_id: u16, options: CmdOpt) -> Request {
