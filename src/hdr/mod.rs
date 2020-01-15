@@ -1,7 +1,7 @@
 //! # CQC Interface
 //!
 //! This module documents the [CQC Interface
-//! specification](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html)
+//! specification](https://softwarequtech.github.io/CQC-Python/interface.html)
 //! and defines the necessary constants and header structures.
 //!
 //! # CQC Header

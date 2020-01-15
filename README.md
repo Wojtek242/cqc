@@ -6,7 +6,7 @@ CQC
 ![License](https://img.shields.io/crates/l/cqc.svg)
 
 A sans-io Rust implementation of the [CQC
-interface](https://softwarequtech.github.io/SimulaQron/html/CQCInterface.html).
+interface](https://softwarequtech.github.io/CQC-Python/interface.html).
 
 The Classical-Quantum Combiner (CQC) interface is used to program quantum
 networking nodes to create, transmit, and manipulate qubits.
