@@ -491,7 +491,7 @@ impl Decoder {
     /// Decode supplied data.
     ///
     /// Returns a Result which contains either the Response or an error.
-    pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<Error>> {
+    pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<dyn Error>> {
         let response = self.config.deserialize_from(buffer)?;
         Ok(response)
     }

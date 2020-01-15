@@ -9,18 +9,10 @@
 //! Every CQC message begins with a CQC header.
 //!
 //! ```text
-//!  0                   1                   2                   3
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |    version    |    msg_type   |             app_id            |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                             length                            |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
 //! Field     Length     Meaning
 //! -----     ------     -------
 //! version   1 byte     CQC interface version.  Current version is 2.
-//! msg_type  1 byte     Message type.
+//! type      1 byte     Message type.
 //! app_id    2 bytes    Application ID.  Return messages will be tagged
 //!                      appropriately.
 //! length    4 bytes    Total length of the CQC instruction packet.
@@ -38,26 +30,28 @@
 //! error types (Err).
 //!
 //! ```text
-//! Type     Name       Meaning
-//! ----     ----       -------
-//!  0       Hello      Alive check.
-//!  1       Command    Execute a command list.
-//!  2       Factory    Start executing command list repeatedly.
-//!  3       Expire     Qubit has expired.
-//!  4       Done       Command execution done.
-//!  5       Recv       Received qubit.
-//!  6       EprOk      Created EPR pair.
-//!  7       MeasOut    Measurement outcome.
-//!  8       GetTime    Get creation time of qubit.
-//!  9       InfTime    Inform about time.
-//!  10      NewOk      Created new qubit.
+//! Type     Name     Meaning
+//! ----     ----     -------
+//!  0       Hello    Alive check.
+//!  1       Command  Execute a command list.
+//!  2       Factory  Start executing command list repeatedly.
+//!  3       Expire   Qubit has expired.
+//!  4       Done     Command execution done.
+//!  5       Recv     Received qubit.
+//!  6       EprOk    Created EPR pair.
+//!  7       MeasOut  Measurement outcome.
+//!  8       GetTime  Get creation time of qubit.
+//!  9       InfTime  Get timing informaiton.
+//!  10      NewOk    Created new qubit.
+//!  11      Mix      Multiple header types will follow.
+//!  12      If       Perform a conditional action.
 //!
-//!  20      General    General purpose error (no details).
-//!  21      NoQubit    No more qubits available.
-//!  22      Unsupp     Command sequence not supported.
-//!  23      Timeout    Timeout.
-//!  24      InUse      Qubit already in use.
-//!  25      Unknown    Unknown qubit ID.
+//!  20      General  General purpose error (no details).
+//!  21      NoQubit  No more qubits available.
+//!  22      Unsupp   Command sequence not supported.
+//!  23      Timeout  Timeout.
+//!  24      InUse    Qubit already in use.
+//!  25      Unknown  Unknown qubit ID.
 //! ```
 //!
 //! # CQC Command Header
@@ -72,12 +66,6 @@
 //!  - GetTime
 //!
 //! ```text
-//!  0                   1                   2                   3
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |            qubit_id           |     instr     |    options    |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
 //! Field     Length     Meaning
 //! -----     ------     -------
 //! qubit_id  2 bytes    Qubit ID to perform the operation on.
@@ -129,6 +117,9 @@
 //!
 //!  20      Cnot            CNOT Gate with this as control.
 //!  21      Cphase          CPHASE Gate with this as control.
+//!
+//!  22      Allocate        Allocate a number of qubits.
+//!  23      Release         Release a qubit.
 //! ```
 //!
 //! ## CQC Command Header options
@@ -136,46 +127,35 @@
 //! Command options are set as bit flags.
 //!
 //! ```text
-//! Flag     Name    Meaning
-//! ----     ----    -------
-//! 0x01     Notify  Send a notification when command completes.
-//! 0x02     Action  On if there are actions to execute when done.
-//! 0x04     Block   Block until command is done.
-//! 0x08     IfThen  Execute command after done.
+//! Flag     Name     Meaning
+//! ----     ----     -------
+//! 0x01     Notify   Send a notification when command completes.
+//! 0x02     Action   On if there are actions to execute when done.
+//! 0x04     Block    Block until command is done.
+//! 0x08     IfThen   Execute command after done.
 //! ```
 //!
-//! # CQC Sequence Header
+//! # CQC Assign Header
 //!
-//! Additional header used to indicate size of a sequence.  Used when sending
-//! multiple commands at once.  It tells the backend how many more messages are
-//! coming.
+//! Additional header used to store a measurement outcome in the backend and
+//! assign it a reference ID.  Every measurement command (CQC_CMD_MEASURE or
+//! CQC_CMD_MEASURE_INPLACE) is followed by a CQC Assign Header.  The value can
+//! be retrieved by future instructions by refering to this ID.
 //!
 //! ```text
-//!  0
-//!  0 1 2 3 4 5 6 7
-//! +-+-+-+-+-+-+-+-+
-//! |   cmd_length  |
-//! +-+-+-+-+-+-+-+-+
-//!
-//! Field       Length     Meaning
-//! -----       ------     -------
-//! cmd_length  1 byte     Length (in bytes) of messages to come.
-//! ```
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! ref_id    4 bytes    Reference ID for the measurement` value.
+//! ``
 //!
 //! # CQC Rotation Header
 //!
 //! Additional header used to define the rotation angle of a rotation gate.
 //!
 //! ```text
-//!  0
-//!  0 1 2 3 4 5 6 7
-//! +-+-+-+-+-+-+-+-+
-//! |      step     |
-//! +-+-+-+-+-+-+-+-+
-//!
-//! Field       Length     Meaning
-//! -----       ------     -------
-//! step        1 byte     Angle step of rotation (increments of 1/256).
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! step      1 byte     Angle step of rotation (increments of 1/256).
 //! ```
 //!
 //! # CQC Extra Qubit Header
@@ -184,15 +164,9 @@
 //! qubit gates.
 //!
 //! ```text
-//!  0                   1
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |            qubit_id           |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
-//! Field          Length     Meaning
-//! -----          ------     -------
-//! qubit_id       2 bytes    ID of the target qubit.
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! qubit_id  2 bytes    ID of the target qubit.
 //! ```
 //!
 //! # CQC Communication Header
@@ -201,14 +175,6 @@
 //! in send and EPR commands.
 //!
 //! ```text
-//!  0                   1                   2                   3
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |          remote_app_id        |         remote_port           |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                          remote_node                          |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
 //! Field          Length     Meaning
 //! -----          ------     -------
 //! remote_app_id  2 bytes    Remote application ID.
@@ -224,16 +190,10 @@
 //! commands multiple times.
 //!
 //! ```text
-//!  0                   1
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |    num_iter   |    options    |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
-//! Field          Length     Meaning
-//! -----          ------     -------
-//! num_iter       1 byte     Number of iterations to do the sequence.
-//! options        1 byte     Options when executing the factory.
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! num_iter  1 byte     Number of iterations to do the sequence.
+//! options   1 byte     Options when executing the factory.
 //! ```
 //!
 //! ## CQC Factory Header options
@@ -241,10 +201,10 @@
 //! Factory options are set as bit flags.
 //!
 //! ```text
-//! Flag     Name    Meaning
-//! ----     ----    -------
-//! 0x01     Notify  Send a notification when command completes.
-//! 0x04     Block   Block until factory is done.
+//! Flag     Name     Meaning
+//! ----     ----     -------
+//! 0x01     Notify   Send a notification when command completes.
+//! 0x04     Block    Block until factory is done.
 //! ```
 //!
 //! # CQC Measurement Outcome Header
@@ -252,15 +212,9 @@
 //! Additional header used to send the outcome of a measurement.
 //!
 //! ```text
-//!  0
-//!  0 1 2 3 4 5 6 7
-//! +-+-+-+-+-+-+-+-+
-//! |    meas_out   |
-//! +-+-+-+-+-+-+-+-+
-//!
-//! Field       Length     Meaning
-//! -----       ------     -------
-//! meas_out    1 byte     Measurement outcome.
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! meas_out  1 byte     Measurement outcome.
 //! ```
 //!
 //! # CQC Time Info Header
@@ -269,16 +223,9 @@
 //! command.
 //!
 //! ```text
-//!  0                   1                   2                   3
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                           datetime                            |
-//! |                                                               |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
-//! Field          Length     Meaning
-//! -----          ------     -------
-//! datetime       8 bytes    Time of creation.
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! datetime  8 bytes    Time of creation.
 //! ```
 //!
 //! # CQC Entanglement Information Header
@@ -295,28 +242,6 @@
 //! gives a unique way to identify the entanglement in the network.
 //!
 //! ```text
-//!  0                   1                   2                   3
-//!  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                             node_A                            |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |             port_A            |            app_id_A           |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                             node_B                            |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |             port_B            |            app_id_B           |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                             id_AB                             |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                           timestamp                           |
-//! |                                                               |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |                              ToG                              |
-//! |                                                               |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//! |            goodness           |       DF      |     align     |
-//! +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//!
 //! Field      Length     Meaning
 //! -----      ------     -------
 //! node_A     4 bytes    IP of this node.
@@ -331,6 +256,51 @@
 //! goodness   2 bytes    Goodness (estimate of the fidelity of state).
 //! DF         1 byte     Directionality flag (0=Mid, 1=node_A, 2=node_B).
 //! align      1 byte     4 byte alignment.
+//! ```
+//!
+//! # CQC Type Header
+//!
+//! A top-level CQC header of type Mix may be followed by multiple other header
+//! types.  Each new header is announced by the CQC type header.
+//!
+//! ```text
+//! Field     Length     Meaning
+//! -----     ------     -------
+//! type      1 byte     Type of next header (except Mix).
+//! length    4 bytes    Number of bytes until the next type header.
+//! ```
+//!
+//! # CQC If Header
+//!
+//! The If header can only be used inside programs of type Mix.  Execute the
+//! following command only if the specified condition is true.
+//!
+//! ```text
+//! Field          Length     Meaning
+//! -----          ------     -------
+//! left_operand   4 bytes    Refernce ID of the first operand.
+//! operator       1 byte     Comparison operator.
+//! right_type     1 byte     Type of second operand.
+//! right_operand  4 bytes    Reference ID or value of second operand.
+//! length         4 bytes    Length in bytes of following command.
+//! ```
+//!
+//! ## CQC If Header Operator Types
+//!
+//! ```text
+//! Type     Name     Meaning
+//! ----     ----     -------
+//!  0       Eq       Compare for equality.
+//!  1       InEq     Compare for inequality.
+//! ```
+//!
+//! ## CQC If Header Right Operand Types
+//!
+//! ```text
+//! Type     Name     Meaning
+//! ----     ----     -------
+//!  0       Value    Right operand holds raw value.
+//!  1       RefId    Right operand holds reference ID.
 //! ```
 
 extern crate serde;
@@ -375,18 +345,10 @@ serde_enum_u8!(Version, VersionVisitor, "CQC version");
 /// Every CQC message begins with a CQC header.
 ///
 /// ```text
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |    version    |    msg_type   |             app_id            |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                             length                            |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
 /// Field     Length     Meaning
 /// -----     ------     -------
-/// version   1 byte     CQC interface version.  Current version is 0.
-/// msg_type  1 byte     Message type.
+/// version   1 byte     CQC interface version.  Current version is 2.
+/// type      1 byte     Message type.
 /// app_id    2 bytes    Application ID.  Return messages will be tagged
 ///                      appropriately.
 /// length    4 bytes    Total length of the CQC instruction packet.
@@ -413,26 +375,28 @@ def_len!(CqcHdr, 8);
 /// error types (Err).
 ///
 /// ```text
-/// Type     Name       Meaning
-/// ----     ----       -------
-///  0       Hello      Alive check.
-///  1       Command    Execute a command list.
-///  2       Factory    Start executing command list repeatedly.
-///  3       Expire     Qubit has expired.
-///  4       Done       Command execution done.
-///  5       Recv       Received qubit.
-///  6       EprOk      Created EPR pair.
-///  7       MeasOut    Measurement outcome.
-///  8       GetTime    Get creation time of qubit.
-///  9       InfTime    Inform about time.
-///  10      NewOk      Created new qubit.
+/// Type     Name     Meaning
+/// ----     ----     -------
+///  0       Hello    Alive check.
+///  1       Command  Execute a command list.
+///  2       Factory  Start executing command list repeatedly.
+///  3       Expire   Qubit has expired.
+///  4       Done     Command execution done.
+///  5       Recv     Received qubit.
+///  6       EprOk    Created EPR pair.
+///  7       MeasOut  Measurement outcome.
+///  8       GetTime  Get creation time of qubit.
+///  9       InfTime  Get timing informaiton.
+///  10      NewOk    Created new qubit.
+///  11      Mix      Multiple header types will follow.
+///  12      If       Perform a conditional action.
 ///
-///  20      General    General purpose error (no details).
-///  21      NoQubit    No more qubits available.
-///  22      Unsupp     Command sequence not supported.
-///  23      Timeout    Timeout.
-///  24      InUse      Qubit already in use.
-///  25      Unknown    Unknown qubit ID.
+///  20      General  General purpose error (no details).
+///  21      NoQubit  No more qubits available.
+///  22      Unsupp   Command sequence not supported.
+///  23      Timeout  Timeout.
+///  24      InUse    Qubit already in use.
+///  25      Unknown  Unknown qubit ID.
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MsgType {
@@ -501,6 +465,8 @@ impl MsgType {
     def_is_tp!(Tp::GetTime, is_get_time);
     def_is_tp!(Tp::InfTime, is_inf_time);
     def_is_tp!(Tp::NewOk, is_new_ok);
+    def_is_tp!(Tp::Mix, is_mix);
+    def_is_tp!(Tp::If, is_if);
 
     def_is_err!(Err::General, is_err_general);
     def_is_err!(Err::NoQubit, is_err_noqubit);
@@ -513,27 +479,12 @@ impl MsgType {
     /// does not correspond to a valid message type.
     #[inline]
     pub fn get(value: u8) -> Option<MsgType> {
-        let msg_type = match value {
-            0 => MsgType::Tp(Tp::Hello),
-            1 => MsgType::Tp(Tp::Command),
-            2 => MsgType::Tp(Tp::Factory),
-            3 => MsgType::Tp(Tp::Expire),
-            4 => MsgType::Tp(Tp::Done),
-            5 => MsgType::Tp(Tp::Recv),
-            6 => MsgType::Tp(Tp::EprOk),
-            7 => MsgType::Tp(Tp::MeasOut),
-            8 => MsgType::Tp(Tp::GetTime),
-            9 => MsgType::Tp(Tp::InfTime),
-            10 => MsgType::Tp(Tp::NewOk),
-
-            20 => MsgType::Err(Err::General),
-            21 => MsgType::Err(Err::NoQubit),
-            22 => MsgType::Err(Err::Unsupp),
-            23 => MsgType::Err(Err::Timeout),
-            24 => MsgType::Err(Err::InUse),
-            25 => MsgType::Err(Err::Unknown),
-
-            _ => return None,
+        let msg_type = if value <= Tp::If as u8 {
+            MsgType::Tp(Tp::get(value).unwrap())
+        } else if value >= Err::General as u8 && value <= Err::Unknown as u8 {
+            MsgType::Err(Err::get(value).unwrap())
+        } else {
+            return None;
         };
 
         Some(msg_type)
@@ -560,19 +511,21 @@ deserialize_enum_u8!(MsgType, MsgTypeVisitor, "CQC message type");
 /// The supported normal message types.
 ///
 /// ```text
-/// Type     Name       Meaning
-/// ----     ----       -------
-///  0       Hello      Alive check.
-///  1       Command    Execute a command list.
-///  2       Factory    Start executing command list repeatedly.
-///  3       Expire     Qubit has expired.
-///  4       Done       Command execution done.
-///  5       Recv       Received qubit.
-///  6       EprOk      Created EPR pair.
-///  7       MeasOut    Measurement outcome.
-///  8       GetTime    Get creation time of qubit.
-///  9       InfTime    Inform about time.
-///  10      NewOk      Created new qubit.
+/// Type     Name     Meaning
+/// ----     ----     -------
+///  0       Hello    Alive check.
+///  1       Command  Execute a command list.
+///  2       Factory  Start executing command list repeatedly.
+///  3       Expire   Qubit has expired.
+///  4       Done     Command execution done.
+///  5       Recv     Received qubit.
+///  6       EprOk    Created EPR pair.
+///  7       MeasOut  Measurement outcome.
+///  8       GetTime  Get creation time of qubit.
+///  9       InfTime  Get timing informaiton.
+///  10      NewOk    Created new qubit.
+///  11      Mix      Multiple header types will follow.
+///  12      If       Perform a conditional action.
 /// ```
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -588,32 +541,85 @@ pub enum Tp {
     GetTime = 8, // Get creation time of qubit.
     InfTime = 9, // Inform about time.
     NewOk = 10,  // Created new qubit.
+    Mix = 11,    // Multiple header types will follow.
+    If = 12,     // Perform a conditional action.
 }
+
+impl Tp {
+    /// Convert an 8-bit value to a normal message type.  Returns `None` if the
+    /// value does not correspond to a valid normal message type.
+    #[inline]
+    pub fn get(value: u8) -> Option<Tp> {
+        let msg_type = match value {
+            0 => Tp::Hello,
+            1 => Tp::Command,
+            2 => Tp::Factory,
+            3 => Tp::Expire,
+            4 => Tp::Done,
+            5 => Tp::Recv,
+            6 => Tp::EprOk,
+            7 => Tp::MeasOut,
+            8 => Tp::GetTime,
+            9 => Tp::InfTime,
+            10 => Tp::NewOk,
+            11 => Tp::Mix,
+            12 => Tp::If,
+
+            _ => return None,
+        };
+
+        Some(msg_type)
+    }
+}
+
+serde_enum_u8!(Tp, TpVisitor, "CQC normal message type");
 
 /// # CQC Header Error Message Types
 ///
 /// The supported error message types.
 ///
 /// ```text
-/// Type     Name       Meaning
-/// ----     ----       -------
-///  20      General    General purpose error (no details).
-///  21      NoQubit    No more qubits available.
-///  22      Unsupp     Command sequence not supported.
-///  23      Timeout    Timeout.
-///  24      InUse      Qubit already in use.
-///  25      Unknown    Unknown qubit ID.
+/// Type     Name     Meaning
+/// ----     ----     -------
+///  20      General  General purpose error (no details).
+///  21      NoQubit  No more qubits available.
+///  22      Unsupp   Command sequence not supported.
+///  23      Timeout  Timeout.
+///  24      InUse    Qubit already in use.
+///  25      Unknown  Unknown qubit ID.
 /// ```
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Err {
-    General = 20, // General purpose error (no details.
+    General = 20, // General purpose error (no details).
     NoQubit = 21, // No more qubits available.
     Unsupp = 22,  // Command sequence not supported.
     Timeout = 23, // Timeout.
     InUse = 24,   // Qubit already in use.
     Unknown = 25, // Unknown qubit ID
 }
+
+impl Err {
+    /// Convert an 8-bit value to an error message type.  Returns `None` if the
+    /// value does not correspond to a valid normal message type.
+    #[inline]
+    pub fn get(value: u8) -> Option<Err> {
+        let msg_type = match value {
+            20 => Err::General,
+            21 => Err::NoQubit,
+            22 => Err::Unsupp,
+            23 => Err::Timeout,
+            24 => Err::InUse,
+            25 => Err::Unknown,
+
+            _ => return None,
+        };
+
+        Some(msg_type)
+    }
+}
+
+serde_enum_u8!(Err, ErrVisitor, "CQC error message type");
 
 /// # CQC Command Header
 ///
@@ -627,12 +633,6 @@ pub enum Err {
 ///  - GetTime
 ///
 /// ```text
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |            qubit_id           |     instr     |    options    |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
 /// Field     Length     Meaning
 /// -----     ------     -------
 /// qubit_id  2 bytes    Qubit ID to perform the operation on.
@@ -692,6 +692,9 @@ def_len!(CmdHdr, 4);
 ///
 ///  20      Cnot            CNOT Gate with this as control.
 ///  21      Cphase          CPHASE Gate with this as control.
+///
+///  22      Allocate        Allocate a number of qubits.
+///  23      Release         Release a qubit.
 /// ```
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -718,6 +721,9 @@ pub enum Cmd {
 
     Cnot = 20,   // CNOT Gate with this as control.
     Cphase = 21, // CPHASE Gate with this as control.
+
+    Allocate = 22, // Allocate a number of qubits.
+    Release = 23,  // Release a qubit.
 }
 
 impl Cmd {
@@ -749,6 +755,9 @@ impl Cmd {
             20 => Cmd::Cnot,
             21 => Cmd::Cphase,
 
+            22 => Cmd::Allocate,
+            23 => Cmd::Release,
+
             _ => return None,
         };
 
@@ -764,12 +773,12 @@ bitflags! {
     /// Command options are set as bit flags.
     ///
     /// ```text
-    /// Flag     Name    Meaning
-    /// ----     ----    -------
-    /// 0x01     Notify  Send a notification when command completes.
-    /// 0x02     Action  On if there are actions to execute when done.
-    /// 0x04     Block   Block until command is done.
-    /// 0x08     IfThen  Execute command after done.
+    /// Flag     Name     Meaning
+    /// ----     ----     -------
+    /// 0x01     Notify   Send a notification when command completes.
+    /// 0x02     Action   On if there are actions to execute when done.
+    /// 0x04     Block    Block until command is done.
+    /// 0x08     IfThen   Execute command after done.
     /// ```
     pub struct CmdOpt: u8 {
         const NOTIFY = 0x01;
@@ -793,44 +802,33 @@ impl CmdOpt {
 
 serde_option_u8!(CmdOpt, CmdOptVisitor, "command");
 
-/// # CQC Sequence Header
+/// # CQC Assign Header
 ///
-/// Additional header used to indicate size of a sequence.  Used when sending
-/// multiple commands at once.  It tells the backend how many more messages are
-/// coming.
+/// Additional header used to store a measurement outcome in the backend and
+/// assign it a reference ID.  Every measurement command (CQC_CMD_MEASURE or
+/// CQC_CMD_MEASURE_INPLACE) is followed by a CQC Assign Header.  The value can
+/// be retrieved by future instructions by refering to this ID.
 ///
 /// ```text
-///  0
-///  0 1 2 3 4 5 6 7
-/// +-+-+-+-+-+-+-+-+
-/// |   cmd_length  |
-/// +-+-+-+-+-+-+-+-+
-///
-/// Field       Length     Meaning
-/// -----       ------     -------
-/// cmd_length  1 byte     Length (in bytes) of messages to come.
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// ref_id    4 bytes    Reference ID for the measurement` value.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct SeqHdr {
-    pub cmd_length: u8,
+pub struct AssignHdr {
+    pub ref_id: u32,
 }
 
-def_len!(SeqHdr, 1);
+def_len!(AssignHdr, 4);
 
 /// # CQC Rotation Header
 ///
 /// Additional header used to define the rotation angle of a rotation gate.
 ///
 /// ```text
-///  0
-///  0 1 2 3 4 5 6 7
-/// +-+-+-+-+-+-+-+-+
-/// |      step     |
-/// +-+-+-+-+-+-+-+-+
-///
-/// Field       Length     Meaning
-/// -----       ------     -------
-/// step        1 byte     Angle step of rotation (increments of 1/256).
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// step      1 byte     Angle step of rotation (increments of 1/256).
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct RotHdr {
@@ -845,15 +843,9 @@ def_len!(RotHdr, 1);
 /// qubit gates.
 ///
 /// ```text
-///  0                   1
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |            qubit_id           |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
-/// Field          Length     Meaning
-/// -----          ------     -------
-/// qubit_id       2 bytes    ID of the target qubit.
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// qubit_id  2 bytes    ID of the target qubit.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct QubitHdr {
@@ -869,14 +861,6 @@ def_len!(QubitHdr, 2);
 ///
 ///
 /// ```text
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |          remote_app_id        |         remote_port           |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                          remote_node                          |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
 /// Field          Length     Meaning
 /// -----          ------     -------
 /// remote_app_id  2 bytes    Remote application ID.
@@ -900,16 +884,10 @@ def_len!(CommHdr, 8);
 /// commands multiple times.
 ///
 /// ```text
-///  0                   1
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |    num_iter   |    options    |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
-/// Field          Length     Meaning
-/// -----          ------     -------
-/// num_iter       1 byte     Number of iterations to do the sequence.
-/// options        1 byte     Options when executing the factory.
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// num_iter  1 byte     Number of iterations to do the sequence.
+/// options   1 byte     Options when executing the factory.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct FactoryHdr {
@@ -925,10 +903,10 @@ bitflags! {
     /// Factory options are set as bit flags.
     ///
     /// ```text
-    /// Flag     Name    Meaning
-    /// ----     ----    -------
-    /// 0x01     Notify  Send a notification when command completes.
-    /// 0x04     Block   Block until factory is done.
+    /// Flag     Name     Meaning
+    /// ----     ----     -------
+    /// 0x01     Notify   Send a notification when command completes.
+    /// 0x04     Block    Block until factory is done.
     /// ```
     pub struct FactoryOpt: u8 {
         const NOTIFY = 0x01;
@@ -951,15 +929,9 @@ serde_option_u8!(FactoryOpt, FactoryOptVisitor, "factory");
 /// Additional header used to send the outcome of a measurement.
 ///
 /// ```text
-///  0
-///  0 1 2 3 4 5 6 7
-/// +-+-+-+-+-+-+-+-+
-/// |    meas_out   |
-/// +-+-+-+-+-+-+-+-+
-///
-/// Field       Length     Meaning
-/// -----       ------     -------
-/// meas_out    1 byte     Measurement outcome.
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// meas_out  1 byte     Measurement outcome.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct MeasOutHdr {
@@ -1001,16 +973,9 @@ serde_enum_u8!(MeasOut, MeasOutVisitor, "Measurement Outcome");
 /// command.
 ///
 /// ```text
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                           datetime                            |
-/// |                                                               |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
-/// Field          Length     Meaning
-/// -----          ------     -------
-/// datetime       8 bytes    Time of creation.
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// datetime  8 bytes    Time of creation.
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct TimeInfoHdr {
@@ -1033,28 +998,6 @@ def_len!(TimeInfoHdr, 8);
 /// gives a unique way to identify the entanglement in the network.
 ///
 /// ```text
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                             node_A                            |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |             port_A            |            app_id_A           |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                             node_B                            |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |             port_B            |            app_id_B           |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                             id_AB                             |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                           timestamp                           |
-/// |                                                               |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                              ToG                              |
-/// |                                                               |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |            goodness           |       DF      |     align     |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///
 /// Field      Length     Meaning
 /// -----      ------     -------
 /// node_A     4 bytes    IP of this node.
@@ -1087,6 +1030,114 @@ pub struct EntInfoHdr {
 }
 
 def_len!(EntInfoHdr, 40);
+
+/// # CQC Type Header
+///
+/// A top-level CQC header of type Mix may be followed by multiple other header
+/// types.  Each new header is announced by the CQC type header.
+///
+/// ```text
+/// Field     Length     Meaning
+/// -----     ------     -------
+/// type      1 byte     Type of next header (except Mix).
+/// length    4 bytes    Number of bytes until the next type header.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct TypeHdr {
+    pub hdr_type: Tp,
+    pub length: u32,
+}
+
+def_len!(TypeHdr, 5);
+
+/// # CQC If Header
+///
+/// The If header can only be used inside programs of type Mix.  Execute the
+/// following command only if the specified condition is true.
+///
+/// ```text
+/// Field          Length     Meaning
+/// -----          ------     -------
+/// left_operand   4 bytes    Refernce ID of the first operand.
+/// operator       1 byte     Comparison operator.
+/// right_type     1 byte     Type of second operand.
+/// right_operand  4 bytes    Reference ID or value of second operand.
+/// length         4 bytes    Length in bytes of following command.
+/// ```
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct IfHdr {
+    pub left_op: u32,
+    pub operator: CmpType,
+    pub right_op_t: OpType,
+    pub right_op: u32,
+    pub length: u32,
+}
+
+def_len!(IfHdr, 14);
+
+/// ## CQC If Header Operator Types
+///
+/// ```text
+/// Type     Name     Meaning
+/// ----     ----     -------
+///  0       Eq       Compare for equality.
+///  1       InEq     Compare for inequality.
+/// ```
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum CmpType {
+    Eq = 0,
+    InEq = 1,
+}
+
+impl CmpType {
+    /// Convert an 8-bit value to a comparison operator type.  Returns `None`
+    /// if the value does not correspond to a valid operator type.
+    #[inline]
+    pub fn get(value: u8) -> Option<CmpType> {
+        let cmp_type = match value {
+            0 => CmpType::Eq,
+            1 => CmpType::InEq,
+            _ => return None,
+        };
+
+        Some(cmp_type)
+    }
+}
+
+serde_enum_u8!(CmpType, CmpTypeVisitor, "Comparison Operator Type");
+
+/// ## CQC If Header Right Operand Types
+///
+/// ```text
+/// Type     Name     Meaning
+/// ----     ----     -------
+///  0       Value    Right operand holds raw value.
+///  1       RefId    Right operand holds reference ID.
+/// ```
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum OpType {
+    Value = 0,
+    RefId = 1,
+}
+
+impl OpType {
+    /// Convert an 8-bit value to an operand type.  Returns `None` if the value
+    /// does not correspond to a valid operand type.
+    #[inline]
+    pub fn get(value: u8) -> Option<OpType> {
+        let op_type = match value {
+            0 => OpType::Value,
+            1 => OpType::RefId,
+            _ => return None,
+        };
+
+        Some(op_type)
+    }
+}
+
+serde_enum_u8!(OpType, OpTypeVisitor, "Operand Type");
 
 // ----------------------------------------------------------------------------
 // Tests.
@@ -1121,9 +1172,12 @@ mod tests {
     }
 
     #[test]
-    fn seq_hdr_ser_size() {
-        let seq_hdr = SeqHdr { cmd_length: 0 };
-        assert_eq!(serialize(&seq_hdr).unwrap().len() as u32, seq_hdr.len());
+    fn assign_hdr_ser_size() {
+        let assign_hdr = AssignHdr { ref_id: 0 };
+        assert_eq!(
+            serialize(&assign_hdr).unwrap().len() as u32,
+            assign_hdr.len()
+        );
     }
 
     #[test]
@@ -1203,5 +1257,26 @@ mod tests {
             serialize(&ent_info_hdr).unwrap().len() as u32,
             ent_info_hdr.len()
         );
+    }
+
+    #[test]
+    fn type_hdr_ser_size() {
+        let type_hdr = TypeHdr {
+            hdr_type: Tp::Hello,
+            length: 0,
+        };
+        assert_eq!(serialize(&type_hdr).unwrap().len() as u32, type_hdr.len());
+    }
+
+    #[test]
+    fn if_hdr_ser_size() {
+        let if_hdr = IfHdr {
+            left_op: 0,
+            operator: CmpType::Eq,
+            right_op_t: OpType::Value,
+            right_op: 0,
+            length: 0,
+        };
+        assert_eq!(serialize(&if_hdr).unwrap().len() as u32, if_hdr.len());
     }
 }
