@@ -183,7 +183,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cqc = "0.3"
+cqc = "0.5"
 ```
 
 and this to your source file:
