@@ -70,39 +70,19 @@ impl Builder {
     }
     /// Build a qubit creation command request.
     pub fn cmd_new(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::New,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::New, options, XtraHdr::None))
     }
     /// Build a measurement command request.
     pub fn cmd_measure(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::Measure,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::Measure, options, XtraHdr::None))
     }
     /// Build an in-place measurement command request.
     pub fn cmd_measure_inplace(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::MeasureInplace,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::MeasureInplace, options, XtraHdr::None))
     }
     /// Build a reset command request.
     pub fn cmd_reset(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::Reset,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::Reset, options, XtraHdr::None))
     }
     /// Build a send command request.  This command has to identify the remote node to send to.
     pub fn cmd_send(&self, qubit_id: u16, options: CmdOpt, remote_id: RemoteId) -> Request {
@@ -111,30 +91,15 @@ impl Builder {
     }
     /// Build a receive command request.
     pub fn cmd_recv(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::Recv,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::Recv, options, XtraHdr::None))
     }
     /// Build an EPR creation command request.
     pub fn cmd_epr(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::Epr,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::Epr, options, XtraHdr::None))
     }
     /// Build an EPR receive command request.
     pub fn cmd_epr_recv(&self, qubit_id: u16, options: CmdOpt) -> Request {
-        self.command(self.build_req_cmd(
-            qubit_id,
-            Cmd::EprRecv,
-            options,
-            XtraHdr::None,
-        ))
+        self.command(self.build_req_cmd(qubit_id, Cmd::EprRecv, options, XtraHdr::None))
     }
 
     /// Build a Pauli X command request.
