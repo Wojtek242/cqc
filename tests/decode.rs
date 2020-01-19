@@ -3,7 +3,7 @@ extern crate cqc;
 #[cfg(test)]
 mod tests {
     use cqc::hdr::*;
-    use cqc::{Decoder, EprInfo, Response, RspInfo};
+    use cqc::{Decoder, Encoder, EprInfo, Response, RspInfo};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -36,7 +36,7 @@ mod tests {
     const TOG: u64 = 0x11_00_99_65_D9_71_89_88;
     const GOODNESS: u16 = 0xFF_01;
 
-    // Decode a response packet that only has a CQC header.
+    // Decode a response that only has a CQC header.
     #[test]
     fn cqc_hdr_decode() {
         let cqc_type = Tp::NewOk;
@@ -57,8 +57,12 @@ mod tests {
             notify: RspInfo::None,
         };
 
+        // Buffer to write into.
+        let buf_len: usize = response.len() as usize;
+        let mut buffer = vec![0xAA; buf_len];
+
         // Big-endian
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             Version::V2 as u8,
             cqc_type as u8,
             get_byte_16!(APP_ID, 0),
@@ -69,8 +73,12 @@ mod tests {
             get_byte_32!(length, 3),
         ];
 
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
         let decoder = Decoder::new();
-        let result = decoder.decode(&packet[..]).unwrap();
+        let result: Response = decoder.decode(&expected[..]).unwrap();
         assert_eq!(result, response);
     }
 
@@ -98,8 +106,12 @@ mod tests {
             notify: RspInfo::Qubit(qubit_hdr),
         };
 
+        // Buffer to write into.
+        let buf_len: usize = response.len() as usize;
+        let mut buffer = vec![0xAA; buf_len];
+
         // Big-endian
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
             cqc_type as u8,
@@ -114,12 +126,16 @@ mod tests {
             get_byte_16!(QUBIT_ID, 1),
         ];
 
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
         let decoder = Decoder::new();
-        let result = decoder.decode(&packet[..]).unwrap();
+        let result: Response = decoder.decode(&expected[..]).unwrap();
         assert_eq!(result, response);
     }
 
-    // Decode a response packet with a Measurement Outcome header.
+    // Decode a response with a Measurement Outcome header.
     #[test]
     fn meas_out_rsp_decode() {
         let cqc_type = Tp::MeasOut;
@@ -145,8 +161,12 @@ mod tests {
             notify: RspInfo::MeasOut(meas_out_hdr),
         };
 
+        // Buffer to write into.
+        let buf_len: usize = response.len() as usize;
+        let mut buffer = vec![0xAA; buf_len];
+
         // Big-endian
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
             cqc_type as u8,
@@ -160,12 +180,16 @@ mod tests {
             0x01,
         ];
 
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
         let decoder = Decoder::new();
-        let result = decoder.decode(&packet[..]).unwrap();
+        let result: Response = decoder.decode(&expected[..]).unwrap();
         assert_eq!(result, response);
     }
 
-    // Decode a response packet that has CQC and Entanglement Info headers.
+    // Decode a response that has CQC and Entanglement Info headers.
     #[test]
     fn ent_info_hdr_decode() {
         let cqc_type = Tp::EprOk;
@@ -210,8 +234,12 @@ mod tests {
             notify: RspInfo::Epr(epr_info),
         };
 
+        // Buffer to write into.
+        let buf_len: usize = response.len() as usize;
+        let mut buffer = vec![0xAA; buf_len];
+
         // Big-endian
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
             cqc_type as u8,
@@ -267,21 +295,25 @@ mod tests {
             0x00,
         ];
 
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
         let decoder = Decoder::new();
-        let result = decoder.decode(&packet[..]).unwrap();
+        let result: Response = decoder.decode(&expected[..]).unwrap();
         assert_eq!(result, response);
     }
 
-    // Decode a response packet that only has a non-zero length indicating
-    // follow-up headers, but it is too short to hold the expected header.
-    // This should return an Error and thus panic on unwrap.
+    // Decode a response that only has a non-zero length indicating follow-up
+    // headers, but it is too short to hold the expected header. This should
+    // return an Error and thus panic on unwrap.
     #[test]
-    #[should_panic(expected = "missing field `QubitHdr`")]
+    #[should_panic(expected = "invalid length 1, expected QubitHdr")]
     fn invalid_len_decode() {
         let cqc_type = Tp::NewOk;
         let length: u32 = QubitHdr::hdr_len() - 1;
 
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
             cqc_type as u8,
@@ -297,18 +329,18 @@ mod tests {
         ];
 
         let decoder = Decoder::new();
-        decoder.decode(&packet[..]).unwrap();
+        let _: Response = decoder.decode(&expected[..]).unwrap();
     }
 
-    // Decode a response packet that only has an invalid CQC version.  This
-    // should return an error (and thus panic on an unwrap).
+    // Decode a response that only has an invalid CQC version. This should
+    // return an error (and thus panic on an unwrap).
     #[test]
     #[should_panic(expected = "Invalid CQC version")]
     fn invalid_version_decode() {
         let cqc_type = Tp::NewOk;
         let length: u32 = 0;
 
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             Version::V2 as u8 + 1,
             cqc_type as u8,
             get_byte_16!(APP_ID, 1),
@@ -320,17 +352,17 @@ mod tests {
         ];
 
         let decoder = Decoder::new();
-        decoder.decode(&packet[..]).unwrap();
+        let _: Response = decoder.decode(&expected[..]).unwrap();
     }
 
-    // Decode a response packet that only has an invalid message type.  This
-    // should return an error (and thus panic on an unwrap).
+    // Decode a response that only has an invalid message type. This should
+    // return an error (and thus panic on an unwrap).
     #[test]
     #[should_panic(expected = "Invalid CQC message type")]
     fn invalid_msg_type_decode() {
         let length: u32 = 0;
 
-        let packet: Vec<u8> = vec![
+        let expected: Vec<u8> = vec![
             Version::V2 as u8,
             0xFF,
             get_byte_16!(APP_ID, 0),
@@ -342,6 +374,6 @@ mod tests {
         ];
 
         let decoder = Decoder::new();
-        decoder.decode(&packet[..]).unwrap();
+        let _: Response = decoder.decode(&expected[..]).unwrap();
     }
 }

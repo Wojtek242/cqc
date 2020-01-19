@@ -4,7 +4,7 @@ extern crate cqc;
 mod tests {
     use cqc::builder::{Builder, RemoteId};
     use cqc::hdr::*;
-    use cqc::Encoder;
+    use cqc::{Decoder, Encoder, Request};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -35,7 +35,7 @@ mod tests {
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
-        let mut buffer = vec![0xFF; buf_len];
+        let mut buffer = vec![0xAA; buf_len];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Hello);
@@ -54,8 +54,12 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 
     // Encode a packet that has a CMD header, but no XTRA header.
@@ -67,7 +71,7 @@ mod tests {
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
-        let mut buffer = vec![0xFF; buf_len];
+        let mut buffer = vec![0xAA; buf_len];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Command);
@@ -94,8 +98,12 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 
     // Encode a packet with a CMD and ROT headers.
@@ -110,7 +118,7 @@ mod tests {
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
-        let mut buffer = vec![0xFF; buf_len];
+        let mut buffer = vec![0xAA; buf_len];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Command);
@@ -139,8 +147,12 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 
     // Encode a packet with a CMD and QUBIT headers.
@@ -155,7 +167,7 @@ mod tests {
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
-        let mut buffer = vec![0xFF; buf_len];
+        let mut buffer = vec![0xAA; buf_len];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Command);
@@ -185,8 +197,12 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 
     // Encode a packet with a CMD and COMM headers.
@@ -205,7 +221,7 @@ mod tests {
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
-        let mut buffer = vec![0xFF; buf_len];
+        let mut buffer = vec![0xAA; buf_len];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Command);
@@ -241,19 +257,23 @@ mod tests {
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), buf_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 
     // Test an encoding when the provided buffer is too small (should panic).
     #[test]
-    #[should_panic(expected = "assertion failed: buffer.len() >= len")]
+    #[should_panic(expected = "failed to write whole buffer")]
     fn cqc_hdr_buf_too_small() {
         let builder = Builder::new(APP_ID);
         let request = builder.hello();
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (request.len() - 1) as usize];
+        let mut buffer = vec![0xAA; (request.len() - 1) as usize];
 
         let encoder = Encoder::new();
 
@@ -264,13 +284,13 @@ mod tests {
     // Test an encoding when the provided buffer is too small, but sufficient
     // for the CQC header (should panic).
     #[test]
-    #[should_panic(expected = "assertion failed: buffer.len() >= len")]
+    #[should_panic(expected = "failed to write whole buffer")]
     fn cmd_hdr_buf_too_small() {
         let builder = Builder::new(APP_ID);
         let request = builder.cmd_i(QUBIT_ID, CmdOpt::empty());
 
         // Buffer to write into.
-        let mut buffer = vec![0xFF; (request.len() - 1) as usize];
+        let mut buffer = vec![0xAA; (request.len() - 1) as usize];
 
         let encoder = Encoder::new();
 
@@ -288,7 +308,7 @@ mod tests {
         // Buffer to write into.
         let write_len: usize = request.len() as usize;
         let buf_len: usize = write_len + 4;
-        let mut buffer = vec![0xFF; buf_len as usize];
+        let mut buffer = vec![0xAA; buf_len as usize];
 
         // Expected values
         let msg_type = MsgType::Tp(Tp::Hello);
@@ -305,14 +325,18 @@ mod tests {
             get_byte_32!(length, 2),
             get_byte_32!(length, 3),
             // The rest should be untouched.
-            0xFF,
-            0xFF,
-            0xFF,
-            0xFF,
+            0xAA,
+            0xAA,
+            0xAA,
+            0xAA,
         ];
 
         let encoder = Encoder::new();
-        assert_eq!(encoder.encode(&request, &mut buffer[..]), write_len);
+        encoder.encode(&request, &mut buffer[..]);
         assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Request = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, request);
     }
 }

@@ -307,6 +307,7 @@ extern crate serde;
 
 use self::serde::de;
 use std::fmt;
+use std::fmt::Display;
 
 use self::serde::de::Visitor;
 use self::serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -398,7 +399,7 @@ def_len!(CqcHdr, 8);
 ///  24      InUse    Qubit already in use.
 ///  25      Unknown  Unknown qubit ID.
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Display, PartialEq)]
 pub enum MsgType {
     Tp(Tp),
     Err(Err),
@@ -528,7 +529,7 @@ deserialize_enum_u8!(MsgType, MsgTypeVisitor, "CQC message type");
 ///  12      If       Perform a conditional action.
 /// ```
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Display, PartialEq)]
 pub enum Tp {
     Hello = 0,   // Alive check.
     Command = 1, // Execute a command list.
@@ -589,7 +590,7 @@ serde_enum_u8!(Tp, TpVisitor, "CQC normal message type");
 ///  25      Unknown  Unknown qubit ID.
 /// ```
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Display, PartialEq)]
 pub enum Err {
     General = 20, // General purpose error (no details).
     NoQubit = 21, // No more qubits available.

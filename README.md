@@ -174,20 +174,4 @@ The following goals drive the design of the `cqc` crate:
 
 ## Limitations
 
-- Factory and Sequence Headers are not currently fully supported.
-- Encode/decode is implemented for client-side operations.
-
-## Usage
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-cqc = "0.5"
-```
-
-and this to your source file:
-
-```rust
-extern crate cqc;
-```
+- Factory, Mix, If, InfTime Headers are not currently fully supported.

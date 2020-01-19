@@ -132,12 +132,14 @@
 //! }
 //! ```
 
+extern crate bincode;
 #[macro_use]
 extern crate bitflags;
 #[macro_use]
-extern crate serde_derive;
-extern crate bincode;
+extern crate enum_display_derive;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod builder;
 pub mod hdr;
@@ -147,7 +149,7 @@ use hdr::*;
 use self::serde::de;
 use std::fmt;
 
-use serde::de::{SeqAccess, Visitor};
+use serde::de::{DeserializeOwned, SeqAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::error::Error;
@@ -176,10 +178,24 @@ macro_rules! def_get_hdr {
         pub fn $fn_name(self) -> $return {
             match self {
                 $enum_name::$variant(x) => x,
-                _ => panic!("Expected {} Header", $str_name),
+                _ => panic!("Expected {}", $str_name),
             }
         }
     }
+}
+
+macro_rules! de_check_len {
+    ($name: expr, $length: expr, $min: expr) => {
+        if $length < $min {
+            return Err(de::Error::invalid_length($length as usize, &$name));
+        }
+    };
+}
+
+macro_rules! de_hdr {
+    ($seq: ident) => {
+        $seq.next_element()?.unwrap()
+    };
 }
 
 /// # Request
@@ -241,9 +257,9 @@ impl XtraHdr {
     def_is_hdr!(XtraHdr, Qubit, is_qubit_hdr);
     def_is_hdr!(XtraHdr, Comm, is_comm_hdr);
 
-    def_get_hdr!(XtraHdr, Rot, RotHdr, get_rot_hdr, "Rotation");
-    def_get_hdr!(XtraHdr, Qubit, QubitHdr, get_qubit_hdr, "Extra Qubit");
-    def_get_hdr!(XtraHdr, Comm, CommHdr, get_comm_hdr, "Communication");
+    def_get_hdr!(XtraHdr, Rot, RotHdr, get_rot_hdr, "RotHdr");
+    def_get_hdr!(XtraHdr, Qubit, QubitHdr, get_qubit_hdr, "QubitHdr");
+    def_get_hdr!(XtraHdr, Comm, CommHdr, get_comm_hdr, "CommHdr");
 
     pub fn is_some(&self) -> bool {
         match self {
@@ -271,9 +287,9 @@ impl Serialize for Request {
         S: Serializer,
     {
         let mut s = serializer.serialize_struct("Request", 2)?;
-        s.serialize_field("cqc_hdr", &self.cqc_hdr)?;
+        s.serialize_field("CqcHdr", &self.cqc_hdr)?;
         if self.req_cmd.is_some() {
-            s.serialize_field("req_cmd", self.req_cmd.as_ref().unwrap())?;
+            s.serialize_field("ReqCmd", self.req_cmd.as_ref().unwrap())?;
         }
         s.end()
     }
@@ -286,14 +302,126 @@ impl Serialize for ReqCmd {
         S: Serializer,
     {
         let mut s = serializer.serialize_struct("ReqCmd", 2)?;
-        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
+        s.serialize_field("CmdHdr", &self.cmd_hdr)?;
         match self.xtra_hdr {
-            XtraHdr::Rot(ref h) => s.serialize_field("xtra_rot_hdr", h)?,
-            XtraHdr::Qubit(ref h) => s.serialize_field("xtra_qubit_hdr", h)?,
-            XtraHdr::Comm(ref h) => s.serialize_field("xtra_comm_hdr", h)?,
+            XtraHdr::Rot(ref h) => s.serialize_field("RotHdr", h)?,
+            XtraHdr::Qubit(ref h) => s.serialize_field("QubtiHdr", h)?,
+            XtraHdr::Comm(ref h) => s.serialize_field("CommHdr", h)?,
             XtraHdr::None => (),
         };
         s.end()
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Request deserialisation.
+// ----------------------------------------------------------------------------
+
+impl<'de> Deserialize<'de> for Request {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Request, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        const FIELDS: &'static [&'static str] =
+            &["CqcHdr", "CmdHdr", "XtraHdr"];
+        deserializer.deserialize_struct("Request", FIELDS, RequestVisitor)
+    }
+}
+
+struct RequestVisitor;
+
+impl<'de> Visitor<'de> for RequestVisitor {
+    type Value = Request;
+
+    #[inline]
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a CQC request packet")
+    }
+
+    #[inline]
+    fn visit_seq<V>(self, mut seq: V) -> Result<Request, V::Error>
+    where
+        V: SeqAccess<'de>,
+    {
+        let cqc_hdr: CqcHdr = de_hdr!(seq);
+        let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
+
+        if length == 0 {
+            return Ok(Request {
+                cqc_hdr,
+                req_cmd: None,
+            });
+        }
+
+        let req_cmd = match msg_type {
+            MsgType::Tp(Tp::Hello) => {
+                return Err(de::Error::invalid_type(
+                    de::Unexpected::Other(
+                        "Hello message should not have a message body",
+                    ),
+                    &self,
+                ));
+            }
+
+            MsgType::Tp(Tp::GetTime) | MsgType::Tp(Tp::Command) => {
+                de_check_len!("CmdHdr", length, CmdHdr::hdr_len());
+                let cmd_hdr: CmdHdr = de_hdr!(seq);
+
+                let length = length - CmdHdr::hdr_len();
+                let xtra_hdr = match cmd_hdr.instr {
+                    Cmd::RotX | Cmd::RotY | Cmd::RotZ => {
+                        de_check_len!("RotHdr", length, RotHdr::hdr_len());
+                        XtraHdr::Rot(de_hdr!(seq))
+                    }
+
+                    Cmd::Cnot | Cmd::Cphase => {
+                        de_check_len!("QubitHdr", length, QubitHdr::hdr_len());
+                        XtraHdr::Qubit(de_hdr!(seq))
+                    }
+
+                    Cmd::Send | Cmd::Epr => {
+                        de_check_len!("CommHdr", length, CommHdr::hdr_len());
+                        XtraHdr::Comm(de_hdr!(seq))
+                    }
+
+                    _ => XtraHdr::None,
+                };
+
+                Some(ReqCmd { cmd_hdr, xtra_hdr })
+            }
+
+            MsgType::Tp(Tp::Factory)
+            | MsgType::Tp(Tp::InfTime)
+            | MsgType::Tp(Tp::Mix)
+            | MsgType::Tp(Tp::If) => {
+                return Err(de::Error::invalid_type(
+                    de::Unexpected::Other(
+                        &vec![
+                            "Deserialise not yet supported for:".to_string(),
+                            msg_type.to_string(),
+                        ]
+                        .join(" "),
+                    ),
+                    &self,
+                ));
+            }
+
+            _ => {
+                return Err(de::Error::invalid_type(
+                    de::Unexpected::Other(
+                        &vec![
+                            "Unexpected message type:".to_string(),
+                            msg_type.to_string(),
+                        ]
+                        .join(" "),
+                    ),
+                    &self,
+                ));
+            }
+        };
+
+        Ok(Request { cqc_hdr, req_cmd })
     }
 }
 
@@ -306,6 +434,12 @@ impl Serialize for ReqCmd {
 pub struct Response {
     pub cqc_hdr: CqcHdr,
     pub notify: RspInfo,
+}
+
+impl Response {
+    pub fn len(&self) -> u32 {
+        CqcHdr::hdr_len() + self.notify.len()
+    }
 }
 
 /// # Response Info
@@ -321,19 +455,22 @@ pub enum RspInfo {
 }
 
 impl RspInfo {
+    pub fn len(&self) -> u32 {
+        match *self {
+            RspInfo::Qubit(_) => QubitHdr::hdr_len(),
+            RspInfo::MeasOut(_) => MeasOutHdr::hdr_len(),
+            RspInfo::Epr(_) => QubitHdr::hdr_len() + EntInfoHdr::hdr_len(),
+            RspInfo::None => 0,
+        }
+    }
+
     def_is_hdr!(RspInfo, Qubit, is_qubit_hdr);
     def_is_hdr!(RspInfo, MeasOut, is_meas_out_hdr);
     def_is_hdr!(RspInfo, Epr, is_epr_hdr);
 
-    def_get_hdr!(RspInfo, Qubit, QubitHdr, get_qubit_hdr, "Qubit");
-    def_get_hdr!(
-        RspInfo,
-        MeasOut,
-        MeasOutHdr,
-        get_meas_out_hdr,
-        "Measurement Outcome"
-    );
-    def_get_hdr!(RspInfo, Epr, EprInfo, get_epr_hdr, "EPR");
+    def_get_hdr!(RspInfo, Qubit, QubitHdr, get_qubit_hdr, "QubitHdr");
+    def_get_hdr!(RspInfo, MeasOut, MeasOutHdr, get_meas_out_hdr, "MeasOutHdr");
+    def_get_hdr!(RspInfo, Epr, EprInfo, get_epr_hdr, "EprInfo");
 
     pub fn is_some(&self) -> bool {
         match self {
@@ -354,10 +491,46 @@ impl RspInfo {
 ///
 /// A response about an EPR pair consists of an Extra Qubit header and an
 /// Entanglement Information header
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct EprInfo {
     pub qubit_hdr: QubitHdr,
     pub ent_info_hdr: EntInfoHdr,
+}
+
+// ----------------------------------------------------------------------------
+// Response serialisation.
+// ----------------------------------------------------------------------------
+
+impl Serialize for Response {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Response", 2)?;
+        s.serialize_field("CqcHdr", &self.cqc_hdr)?;
+        if self.notify.is_some() {
+            s.serialize_field("RspInfo", &self.notify)?;
+        }
+        s.end()
+    }
+}
+
+impl Serialize for RspInfo {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("RspInfo", 1)?;
+        match self {
+            RspInfo::Qubit(ref h) => s.serialize_field("QubtiHdr", h)?,
+            RspInfo::MeasOut(ref h) => s.serialize_field("MeasOutHdr", h)?,
+            RspInfo::Epr(ref h) => s.serialize_field("EprInfo", h)?,
+            RspInfo::None => (),
+        };
+        s.end()
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -370,7 +543,7 @@ impl<'de> Deserialize<'de> for Response {
     where
         D: Deserializer<'de>,
     {
-        const FIELDS: &'static [&'static str] = &["cqc_hdr", "notify"];
+        const FIELDS: &'static [&'static str] = &["CqcHdr", "Notify"];
         deserializer.deserialize_struct("Response", FIELDS, ResponseVisitor)
     }
 }
@@ -382,7 +555,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
 
     #[inline]
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a valid CQC response packet")
+        formatter.write_str("a CQC response packet")
     }
 
     #[inline]
@@ -390,9 +563,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
     where
         V: SeqAccess<'de>,
     {
-        let cqc_hdr: CqcHdr = seq
-            .next_element()?
-            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+        let cqc_hdr: CqcHdr = de_hdr!(seq);
         let (msg_type, length) = (cqc_hdr.msg_type, cqc_hdr.length);
 
         if length == 0 {
@@ -404,34 +575,24 @@ impl<'de> Visitor<'de> for ResponseVisitor {
 
         let notify = match msg_type {
             MsgType::Tp(Tp::Recv) | MsgType::Tp(Tp::NewOk) => {
-                if length < QubitHdr::hdr_len() {
-                    return Err(de::Error::missing_field("QubitHdr"));
-                }
-                let qubit_hdr: QubitHdr = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::Qubit(qubit_hdr)
+                de_check_len!("QubitHdr", length, QubitHdr::hdr_len());
+                RspInfo::Qubit(de_hdr!(seq))
             }
+
             MsgType::Tp(Tp::MeasOut) => {
-                if length < MeasOutHdr::hdr_len() {
-                    return Err(de::Error::missing_field("MeasOutHdr"));
-                }
-                let meas_out_hdr: MeasOutHdr = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::MeasOut(meas_out_hdr)
+                de_check_len!("MeasOutHdr", length, MeasOutHdr::hdr_len());
+                RspInfo::MeasOut(de_hdr!(seq))
             }
+
             MsgType::Tp(Tp::EprOk) => {
-                if length < QubitHdr::hdr_len() + EntInfoHdr::hdr_len() {
-                    return Err(de::Error::missing_field(
-                        "QubitHdr + EntInfoHdr",
-                    ));
-                }
-                let epr_info: EprInfo = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                RspInfo::Epr(epr_info)
+                de_check_len!(
+                    "QubitHdr + EntInfoHdr",
+                    length,
+                    QubitHdr::hdr_len() + EntInfoHdr::hdr_len()
+                );
+                RspInfo::Epr(de_hdr!(seq))
             }
+
             _ => RspInfo::None,
         };
 
@@ -455,27 +616,24 @@ impl Encoder {
         Encoder { config }
     }
 
-    /// Encode a CQC request packet into buffer of bytes.  The return value is
-    /// a the number of bytes written.
+    /// Encode a CQC request packet into buffer of bytes.
     ///
     /// If the provided buffer is not large enough to encode the request
     /// `encode_request` will panic.
-    pub fn encode<'buf>(
-        &self,
-        request: &Request,
-        buffer: &'buf mut [u8],
-    ) -> usize {
-        let len = request.len() as usize;
-        assert!(buffer.len() >= len);
+    pub fn encode<'buf, T>(&self, request: &T, buffer: &'buf mut [u8])
+    where
+        T: Serialize,
+    {
         self.config
-            .serialize_into(&mut buffer[..len], &request)
+            .serialize_into(&mut buffer[..], &request)
             .unwrap();
-
-        len
     }
 
     /// Encode a CQC request packet into a newly allocated vector of bytes.
-    pub fn into_vec(&self, request: &Request) -> Vec<u8> {
+    pub fn into_vec<T>(&self, request: &T) -> Vec<u8>
+    where
+        T: Serialize,
+    {
         self.config.serialize(&request).unwrap()
     }
 }
@@ -499,7 +657,10 @@ impl Decoder {
     /// Decode supplied data.
     ///
     /// Returns a Result which contains either the Response or an error.
-    pub fn decode(&self, buffer: &[u8]) -> Result<Response, Box<dyn Error>> {
+    pub fn decode<T>(&self, buffer: &[u8]) -> Result<T, Box<dyn Error>>
+    where
+        T: DeserializeOwned,
+    {
         let response = self.config.deserialize_from(buffer)?;
         Ok(response)
     }
