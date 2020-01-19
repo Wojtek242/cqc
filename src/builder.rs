@@ -214,6 +214,7 @@ impl Client {
     }
 }
 
+/// The Server builder constructs responses for a particular application ID.
 pub struct Server {
     app_id: u16,
 }
