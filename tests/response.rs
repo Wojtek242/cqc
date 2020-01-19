@@ -1,7 +1,7 @@
 extern crate cqc;
 
 #[cfg(test)]
-mod tests {
+mod response {
     use cqc::hdr::*;
     use cqc::{Decoder, Encoder, EprInfo, Response, RspInfo};
 
@@ -38,9 +38,8 @@ mod tests {
 
     // Decode a response that only has a CQC header.
     #[test]
-    fn cqc_hdr_decode() {
-        let cqc_type = Tp::NewOk;
-        let msg_type = MsgType::Tp(cqc_type);
+    fn cqc_hdr() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
         let length: u32 = 0;
 
         // The CQC header.
@@ -64,7 +63,7 @@ mod tests {
         // Big-endian
         let expected: Vec<u8> = vec![
             Version::V2 as u8,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
             get_byte_32!(length, 0),
@@ -84,9 +83,8 @@ mod tests {
 
     // Decode a response with an Extra Qubit header.
     #[test]
-    fn qubit_rsp_decode() {
-        let cqc_type = Tp::NewOk;
-        let msg_type = MsgType::Tp(cqc_type);
+    fn qubit_rsp() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
         let length: u32 = QubitHdr::hdr_len();
 
         // The CQC header.
@@ -114,7 +112,7 @@ mod tests {
         let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
             get_byte_32!(length, 0),
@@ -137,9 +135,8 @@ mod tests {
 
     // Decode a response with a Measurement Outcome header.
     #[test]
-    fn meas_out_rsp_decode() {
-        let cqc_type = Tp::MeasOut;
-        let msg_type = MsgType::Tp(cqc_type);
+    fn meas_out_rsp() {
+        let msg_type = MsgType::Tp(Tp::MeasOut);
         let length: u32 = MeasOutHdr::hdr_len();
 
         // The CQC header.
@@ -169,7 +166,7 @@ mod tests {
         let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
             get_byte_32!(length, 0),
@@ -191,9 +188,8 @@ mod tests {
 
     // Decode a response that has CQC and Entanglement Info headers.
     #[test]
-    fn ent_info_hdr_decode() {
-        let cqc_type = Tp::EprOk;
-        let msg_type = MsgType::Tp(cqc_type);
+    fn ent_info_hdr() {
+        let msg_type = MsgType::Tp(Tp::EprOk);
         let length: u32 = QubitHdr::hdr_len() + EntInfoHdr::hdr_len();
 
         // The CQC header.
@@ -242,7 +238,7 @@ mod tests {
         let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
             get_byte_32!(length, 0),
@@ -304,19 +300,135 @@ mod tests {
         assert_eq!(result, response);
     }
 
+    // Test an encoding when the provided buffer is too small (should panic).
+    #[test]
+    #[should_panic(expected = "failed to write whole buffer")]
+    fn cqc_hdr_buf_too_small() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
+        let length: u32 = 0;
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: Version::V2,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        // The response.
+        let response = Response {
+            cqc_hdr,
+            notify: RspInfo::None,
+        };
+
+        // Buffer to write into.
+        let mut buffer = vec![0xAA; (response.len() - 1) as usize];
+
+        let encoder = Encoder::new();
+
+        // This should panic.
+        encoder.encode(&response, &mut buffer[..]);
+    }
+
+    // Test an encoding when the provided buffer is too small, but sufficient
+    // for the CQC header (should panic).
+    #[test]
+    #[should_panic(expected = "failed to write whole buffer")]
+    fn cmd_hdr_buf_too_small() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
+        let length: u32 = QubitHdr::hdr_len();
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: Version::V2,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        // The Notify header.
+        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
+
+        // The response.
+        let response = Response {
+            cqc_hdr,
+            notify: RspInfo::Qubit(qubit_hdr),
+        };
+
+        // Buffer to write into.
+        let mut buffer = vec![0xAA; (response.len() - 1) as usize];
+
+        let encoder = Encoder::new();
+
+        // This should panic.
+        encoder.encode(&response, &mut buffer[..]);
+    }
+
+    // Test an encoding when the provided buffer is too large.  Excess should
+    // be untouched.
+    #[test]
+    fn buf_too_large() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
+        let length: u32 = 0;
+
+        // The CQC header.
+        let cqc_hdr = CqcHdr {
+            version: Version::V2,
+            msg_type: msg_type,
+            app_id: APP_ID,
+            length: length,
+        };
+
+        // The response.
+        let response = Response {
+            cqc_hdr,
+            notify: RspInfo::None,
+        };
+
+        // Buffer to write into.
+        let write_len: usize = response.len() as usize;
+        let buf_len: usize = write_len + 4;
+        let mut buffer = vec![0xAA; buf_len as usize];
+
+        // Big-endian
+        let expected: Vec<u8> = vec![
+            Version::V2 as u8,
+            From::from(msg_type),
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // The rest should be untouched.
+            0xAA,
+            0xAA,
+            0xAA,
+            0xAA,
+        ];
+
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let decoded: Response = decoder.decode(&buffer[..]).unwrap();
+        assert_eq!(decoded, response);
+    }
+
     // Decode a response that only has a non-zero length indicating follow-up
     // headers, but it is too short to hold the expected header. This should
     // return an Error and thus panic on unwrap.
     #[test]
     #[should_panic(expected = "invalid length 1, expected QubitHdr")]
-    fn invalid_len_decode() {
-        let cqc_type = Tp::NewOk;
+    fn invalid_len() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
         let length: u32 = QubitHdr::hdr_len() - 1;
 
         let expected: Vec<u8> = vec![
             // CQC header.
             Version::V2 as u8,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 0),
             get_byte_16!(APP_ID, 1),
             get_byte_32!(length, 0),
@@ -336,13 +448,13 @@ mod tests {
     // return an error (and thus panic on an unwrap).
     #[test]
     #[should_panic(expected = "Invalid CQC version")]
-    fn invalid_version_decode() {
-        let cqc_type = Tp::NewOk;
+    fn invalid_version() {
+        let msg_type = MsgType::Tp(Tp::NewOk);
         let length: u32 = 0;
 
         let expected: Vec<u8> = vec![
             Version::V2 as u8 + 1,
-            cqc_type as u8,
+            From::from(msg_type),
             get_byte_16!(APP_ID, 1),
             get_byte_16!(APP_ID, 0),
             get_byte_32!(length, 3),
@@ -359,7 +471,7 @@ mod tests {
     // return an error (and thus panic on an unwrap).
     #[test]
     #[should_panic(expected = "Invalid CQC message type")]
-    fn invalid_msg_type_decode() {
+    fn invalid_msg_type() {
         let length: u32 = 0;
 
         let expected: Vec<u8> = vec![

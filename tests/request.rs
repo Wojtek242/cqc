@@ -1,7 +1,7 @@
 extern crate cqc;
 
 #[cfg(test)]
-mod tests {
+mod request {
     use cqc::builder::{Builder, RemoteId};
     use cqc::hdr::*;
     use cqc::{Decoder, Encoder, Request};
@@ -29,7 +29,7 @@ mod tests {
 
     // Encode a request packet that only has a CQC header.
     #[test]
-    fn cqc_hdr_encode() {
+    fn cqc_hdr() {
         let builder = Builder::new(APP_ID);
         let request = builder.hello();
 
@@ -64,7 +64,7 @@ mod tests {
 
     // Encode a packet that has a CMD header, but no XTRA header.
     #[test]
-    fn cmd_hdr_encode() {
+    fn cmd_hdr() {
         let builder = Builder::new(APP_ID);
         let request = builder
             .cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
@@ -108,7 +108,7 @@ mod tests {
 
     // Encode a packet with a CMD and ROT headers.
     #[test]
-    fn rot_hdr_encode() {
+    fn rot_hdr() {
         let builder = Builder::new(APP_ID);
         let request = builder.cmd_rot_x(
             QUBIT_ID,
@@ -157,7 +157,7 @@ mod tests {
 
     // Encode a packet with a CMD and QUBIT headers.
     #[test]
-    fn qubit_hdr_encode() {
+    fn qubit_hdr() {
         let builder = Builder::new(APP_ID);
         let request = builder.cmd_cnot(
             QUBIT_ID,
@@ -207,7 +207,7 @@ mod tests {
 
     // Encode a packet with a CMD and COMM headers.
     #[test]
-    fn comm_hdr_encode() {
+    fn comm_hdr() {
         let builder = Builder::new(APP_ID);
         let request = builder.cmd_send(
             QUBIT_ID,
@@ -338,5 +338,98 @@ mod tests {
         let decoder = Decoder::new();
         let decoded: Request = decoder.decode(&buffer[..]).unwrap();
         assert_eq!(decoded, request);
+    }
+
+    // Decode a request that only has a non-zero length indicating follow-up
+    // headers, but it is too short to hold the expected header. This should
+    // return an Error and thus panic on unwrap.
+    #[test]
+    #[should_panic(expected = "invalid length 3, expected CmdHdr")]
+    fn invalid_len() {
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len() - 1;
+        let instr = Cmd::New;
+        let options = *CmdOpt::empty().set_notify().set_block();
+
+        let expected: Vec<u8> = vec![
+            // CQC header
+            Version::V2 as u8,
+            From::from(msg_type),
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // CMD header
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+            instr as u8,
+            options.bits(),
+        ];
+
+        let decoder = Decoder::new();
+        let _: Request = decoder.decode(&expected[..]).unwrap();
+    }
+
+    // Decode a request that only has an invalid CQC version. This should
+    // return an error (and thus panic on an unwrap).
+    #[test]
+    #[should_panic(expected = "Invalid CQC version")]
+    fn invalid_version() {
+        let msg_type = MsgType::Tp(Tp::Command);
+        let length = CmdHdr::hdr_len();
+        let instr = Cmd::New;
+        let options = *CmdOpt::empty().set_notify().set_block();
+
+        let expected: Vec<u8> = vec![
+            // CQC header
+            Version::V2 as u8 + 1,
+            From::from(msg_type),
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // CMD header
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+            instr as u8,
+            options.bits(),
+        ];
+
+        let decoder = Decoder::new();
+        let _: Request = decoder.decode(&expected[..]).unwrap();
+    }
+
+    // Decode a request that only has an invalid message type. This should
+    // return an error (and thus panic on an unwrap).
+    #[test]
+    #[should_panic(expected = "Invalid CQC message type")]
+    fn invalid_msg_type() {
+        let length = CmdHdr::hdr_len();
+        let instr = Cmd::New;
+        let options = *CmdOpt::empty().set_notify().set_block();
+
+        let expected: Vec<u8> = vec![
+            // CQC header
+            Version::V2 as u8,
+            0xFF,
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // CMD header
+            get_byte_16!(QUBIT_ID, 0),
+            get_byte_16!(QUBIT_ID, 1),
+            instr as u8,
+            options.bits(),
+        ];
+
+        let decoder = Decoder::new();
+        let _: Request = decoder.decode(&expected[..]).unwrap();
     }
 }
