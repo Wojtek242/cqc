@@ -199,21 +199,6 @@ impl Request {
     }
 }
 
-impl Serialize for Request {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Request", 2)?;
-        s.serialize_field("cqc_hdr", &self.cqc_hdr)?;
-        if self.req_cmd.is_some() {
-            s.serialize_field("req_cmd", self.req_cmd.as_ref().unwrap())?;
-        }
-        s.end()
-    }
-}
-
 /// # Command Request
 ///
 /// A command request follows the CQC Header for certain message types.  It
@@ -228,24 +213,6 @@ pub struct ReqCmd {
 impl ReqCmd {
     pub fn len(&self) -> u32 {
         CmdHdr::hdr_len() + self.xtra_hdr.len()
-    }
-}
-
-impl Serialize for ReqCmd {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
-        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
-        match self.xtra_hdr {
-            XtraHdr::Rot(ref h) => s.serialize_field("xtra_rot_hdr", h)?,
-            XtraHdr::Qubit(ref h) => s.serialize_field("xtra_qubit_hdr", h)?,
-            XtraHdr::Comm(ref h) => s.serialize_field("xtra_comm_hdr", h)?,
-            XtraHdr::None => (),
-        };
-        s.end()
     }
 }
 
@@ -293,6 +260,43 @@ impl XtraHdr {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Request serialisation.
+// ----------------------------------------------------------------------------
+
+impl Serialize for Request {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Request", 2)?;
+        s.serialize_field("cqc_hdr", &self.cqc_hdr)?;
+        if self.req_cmd.is_some() {
+            s.serialize_field("req_cmd", self.req_cmd.as_ref().unwrap())?;
+        }
+        s.end()
+    }
+}
+
+impl Serialize for ReqCmd {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("ReqCmd", 2)?;
+        s.serialize_field("cmd_hdr", &self.cmd_hdr)?;
+        match self.xtra_hdr {
+            XtraHdr::Rot(ref h) => s.serialize_field("xtra_rot_hdr", h)?,
+            XtraHdr::Qubit(ref h) => s.serialize_field("xtra_qubit_hdr", h)?,
+            XtraHdr::Comm(ref h) => s.serialize_field("xtra_comm_hdr", h)?,
+            XtraHdr::None => (),
+        };
+        s.end()
+    }
+}
+
 /// # Response
 ///
 /// If the notify flag is set on a request, the CQC Backend will return a
@@ -303,6 +307,62 @@ pub struct Response {
     pub cqc_hdr: CqcHdr,
     pub notify: RspInfo,
 }
+
+/// # Response Info
+///
+/// Some responses from a CQC backed will be followed by either a Notify Header
+/// or an Entanglement Info Header.
+#[derive(Debug, PartialEq)]
+pub enum RspInfo {
+    Qubit(QubitHdr),
+    MeasOut(MeasOutHdr),
+    Epr(EprInfo),
+    None,
+}
+
+impl RspInfo {
+    def_is_hdr!(RspInfo, Qubit, is_qubit_hdr);
+    def_is_hdr!(RspInfo, MeasOut, is_meas_out_hdr);
+    def_is_hdr!(RspInfo, Epr, is_epr_hdr);
+
+    def_get_hdr!(RspInfo, Qubit, QubitHdr, get_qubit_hdr, "Qubit");
+    def_get_hdr!(
+        RspInfo,
+        MeasOut,
+        MeasOutHdr,
+        get_meas_out_hdr,
+        "Measurement Outcome"
+    );
+    def_get_hdr!(RspInfo, Epr, EprInfo, get_epr_hdr, "EPR");
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            &RspInfo::None => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        match self {
+            &RspInfo::None => true,
+            _ => false,
+        }
+    }
+}
+
+/// # EPR Info
+///
+/// A response about an EPR pair consists of an Extra Qubit header and an
+/// Entanglement Information header
+#[derive(Deserialize, Debug, PartialEq)]
+pub struct EprInfo {
+    pub qubit_hdr: QubitHdr,
+    pub ent_info_hdr: EntInfoHdr,
+}
+
+// ----------------------------------------------------------------------------
+// Response deserialisation.
+// ----------------------------------------------------------------------------
 
 impl<'de> Deserialize<'de> for Response {
     #[inline]
@@ -377,58 +437,6 @@ impl<'de> Visitor<'de> for ResponseVisitor {
 
         Ok(Response { cqc_hdr, notify })
     }
-}
-
-/// # Response Info
-///
-/// Some responses from a CQC backed will be followed by either a Notify Header
-/// or an Entanglement Info Header.
-#[derive(Debug, PartialEq)]
-pub enum RspInfo {
-    Qubit(QubitHdr),
-    MeasOut(MeasOutHdr),
-    Epr(EprInfo),
-    None,
-}
-
-impl RspInfo {
-    def_is_hdr!(RspInfo, Qubit, is_qubit_hdr);
-    def_is_hdr!(RspInfo, MeasOut, is_meas_out_hdr);
-    def_is_hdr!(RspInfo, Epr, is_epr_hdr);
-
-    def_get_hdr!(RspInfo, Qubit, QubitHdr, get_qubit_hdr, "Qubit");
-    def_get_hdr!(
-        RspInfo,
-        MeasOut,
-        MeasOutHdr,
-        get_meas_out_hdr,
-        "Measurement Outcome"
-    );
-    def_get_hdr!(RspInfo, Epr, EprInfo, get_epr_hdr, "EPR");
-
-    pub fn is_some(&self) -> bool {
-        match self {
-            &RspInfo::None => false,
-            _ => true,
-        }
-    }
-
-    pub fn is_none(&self) -> bool {
-        match self {
-            &RspInfo::None => true,
-            _ => false,
-        }
-    }
-}
-
-/// # EPR Info
-///
-/// A response about an EPR pair consists of an Extra Qubit header and an
-/// Entanglement Information header
-#[derive(Deserialize, Debug, PartialEq)]
-pub struct EprInfo {
-    pub qubit_hdr: QubitHdr,
-    pub ent_info_hdr: EntInfoHdr,
 }
 
 /// # Packet encoder
