@@ -2,8 +2,9 @@ extern crate cqc;
 
 #[cfg(test)]
 mod response {
+    use cqc::builder::Server;
     use cqc::hdr::*;
-    use cqc::{Decoder, Encoder, EprInfo, Response, RspInfo};
+    use cqc::{Decoder, Encoder, Response};
 
     macro_rules! get_byte_16 {
         ($value:expr, $byte:expr) => {
@@ -39,26 +40,16 @@ mod response {
     // Decode a response that only has a CQC header.
     #[test]
     fn cqc_hdr() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
-        let length: u32 = 0;
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::None,
-        };
+        let server = Server::new(APP_ID);
+        let response = server.done();
 
         // Buffer to write into.
         let buf_len: usize = response.len() as usize;
         let mut buffer = vec![0xAA; buf_len];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Done);
+        let length: u32 = 0;
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -84,29 +75,16 @@ mod response {
     // Decode a response with an Extra Qubit header.
     #[test]
     fn qubit_rsp() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
-        let length: u32 = QubitHdr::hdr_len();
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The Notify header.
-        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::Qubit(qubit_hdr),
-        };
+        let server = Server::new(APP_ID);
+        let response = server.new_ok(QUBIT_ID);
 
         // Buffer to write into.
         let buf_len: usize = response.len() as usize;
         let mut buffer = vec![0xAA; buf_len];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::NewOk);
+        let length: u32 = QubitHdr::hdr_len();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -136,31 +114,16 @@ mod response {
     // Decode a response with a Measurement Outcome header.
     #[test]
     fn meas_out_rsp() {
-        let msg_type = MsgType::Tp(Tp::MeasOut);
-        let length: u32 = MeasOutHdr::hdr_len();
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The Notify header.
-        let meas_out_hdr = MeasOutHdr {
-            meas_out: MeasOut::One,
-        };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::MeasOut(meas_out_hdr),
-        };
+        let server = Server::new(APP_ID);
+        let response = server.meas_out(MeasOut::One);
 
         // Buffer to write into.
         let buf_len: usize = response.len() as usize;
         let mut buffer = vec![0xAA; buf_len];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::MeasOut);
+        let length: u32 = MeasOutHdr::hdr_len();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -189,50 +152,32 @@ mod response {
     // Decode a response that has CQC and Entanglement Info headers.
     #[test]
     fn ent_info_hdr() {
-        let msg_type = MsgType::Tp(Tp::EprOk);
-        let length: u32 = QubitHdr::hdr_len() + EntInfoHdr::hdr_len();
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The Extra Qubit header.
-        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
-
-        // The Entanglement Info header.
-        let ent_info_hdr = EntInfoHdr {
-            node_a: NODE,
-            port_a: PORT,
-            app_id_a: APP_ID,
-            node_b: REMOTE_NODE,
-            port_b: REMOTE_PORT,
-            app_id_b: REMOTE_APP_ID,
-            id_ab: ENT_ID,
-            timestamp: TIMESTAMP,
-            tog: TOG,
-            goodness: GOODNESS,
-            df: 0,
-            align: 0,
-        };
-
-        let epr_info = EprInfo {
-            qubit_hdr,
-            ent_info_hdr,
-        };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::Epr(epr_info),
-        };
+        let server = Server::new(APP_ID);
+        let response = server.epr_ok(
+            QUBIT_ID,
+            EntInfoHdr {
+                node_a: NODE,
+                port_a: PORT,
+                app_id_a: APP_ID,
+                node_b: REMOTE_NODE,
+                port_b: REMOTE_PORT,
+                app_id_b: REMOTE_APP_ID,
+                id_ab: ENT_ID,
+                timestamp: TIMESTAMP,
+                tog: TOG,
+                goodness: GOODNESS,
+                df: 0,
+                align: 0,
+            },
+        );
 
         // Buffer to write into.
         let buf_len: usize = response.len() as usize;
         let mut buffer = vec![0xAA; buf_len];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::EprOk);
+        let length: u32 = QubitHdr::hdr_len() + EntInfoHdr::hdr_len();
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -300,26 +245,57 @@ mod response {
         assert_eq!(result, response);
     }
 
+    // Decode a response with a Measurement Outcome header.
+    #[test]
+    fn inf_time_rsp() {
+        let server = Server::new(APP_ID);
+        let response = server.inf_time(TIMESTAMP);
+
+        // Buffer to write into.
+        let buf_len: usize = response.len() as usize;
+        let mut buffer = vec![0xAA; buf_len];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::InfTime);
+        let length: u32 = TimeInfoHdr::hdr_len();
+
+        // Big-endian
+        let expected: Vec<u8> = vec![
+            // CQC header.
+            Version::V2 as u8,
+            From::from(msg_type),
+            get_byte_16!(APP_ID, 0),
+            get_byte_16!(APP_ID, 1),
+            get_byte_32!(length, 0),
+            get_byte_32!(length, 1),
+            get_byte_32!(length, 2),
+            get_byte_32!(length, 3),
+            // Notify header.
+            get_byte_64!(TIMESTAMP, 0),
+            get_byte_64!(TIMESTAMP, 1),
+            get_byte_64!(TIMESTAMP, 2),
+            get_byte_64!(TIMESTAMP, 3),
+            get_byte_64!(TIMESTAMP, 4),
+            get_byte_64!(TIMESTAMP, 5),
+            get_byte_64!(TIMESTAMP, 6),
+            get_byte_64!(TIMESTAMP, 7),
+        ];
+
+        let encoder = Encoder::new();
+        encoder.encode(&response, &mut buffer[..]);
+        assert_eq!(buffer, expected);
+
+        let decoder = Decoder::new();
+        let result: Response = decoder.decode(&expected[..]).unwrap();
+        assert_eq!(result, response);
+    }
+
     // Test an encoding when the provided buffer is too small (should panic).
     #[test]
     #[should_panic(expected = "failed to write whole buffer")]
     fn cqc_hdr_buf_too_small() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
-        let length: u32 = 0;
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::None,
-        };
+        let server = Server::new(APP_ID);
+        let response = server.done();
 
         // Buffer to write into.
         let mut buffer = vec![0xAA; (response.len() - 1) as usize];
@@ -335,25 +311,8 @@ mod response {
     #[test]
     #[should_panic(expected = "failed to write whole buffer")]
     fn cmd_hdr_buf_too_small() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
-        let length: u32 = QubitHdr::hdr_len();
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The Notify header.
-        let qubit_hdr = QubitHdr { qubit_id: QUBIT_ID };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::Qubit(qubit_hdr),
-        };
+        let server = Server::new(APP_ID);
+        let response = server.new_ok(QUBIT_ID);
 
         // Buffer to write into.
         let mut buffer = vec![0xAA; (response.len() - 1) as usize];
@@ -368,27 +327,17 @@ mod response {
     // be untouched.
     #[test]
     fn buf_too_large() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
-        let length: u32 = 0;
-
-        // The CQC header.
-        let cqc_hdr = CqcHdr {
-            version: Version::V2,
-            msg_type: msg_type,
-            app_id: APP_ID,
-            length: length,
-        };
-
-        // The response.
-        let response = Response {
-            cqc_hdr,
-            notify: RspInfo::None,
-        };
+        let server = Server::new(APP_ID);
+        let response = server.done();
 
         // Buffer to write into.
         let write_len: usize = response.len() as usize;
         let buf_len: usize = write_len + 4;
         let mut buffer = vec![0xAA; buf_len as usize];
+
+        // Expected values
+        let msg_type = MsgType::Tp(Tp::Done);
+        let length: u32 = 0;
 
         // Big-endian
         let expected: Vec<u8> = vec![
@@ -449,7 +398,7 @@ mod response {
     #[test]
     #[should_panic(expected = "Invalid CQC version")]
     fn invalid_version() {
-        let msg_type = MsgType::Tp(Tp::NewOk);
+        let msg_type = MsgType::Tp(Tp::Done);
         let length: u32 = 0;
 
         let expected: Vec<u8> = vec![

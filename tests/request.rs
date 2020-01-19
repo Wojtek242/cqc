@@ -2,7 +2,7 @@ extern crate cqc;
 
 #[cfg(test)]
 mod request {
-    use cqc::builder::{Builder, RemoteId};
+    use cqc::builder::{Client, RemoteId};
     use cqc::hdr::*;
     use cqc::{Decoder, Encoder, Request};
 
@@ -30,8 +30,8 @@ mod request {
     // Encode a request packet that only has a CQC header.
     #[test]
     fn cqc_hdr() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.hello();
+        let client = Client::new(APP_ID);
+        let request = client.hello();
 
         // Buffer to write into.
         let buf_len: usize = request.len() as usize;
@@ -65,8 +65,8 @@ mod request {
     // Encode a packet that has a CMD header, but no XTRA header.
     #[test]
     fn cmd_hdr() {
-        let builder = Builder::new(APP_ID);
-        let request = builder
+        let client = Client::new(APP_ID);
+        let request = client
             .cmd_new(QUBIT_ID, *CmdOpt::empty().set_notify().set_block());
 
         // Buffer to write into.
@@ -109,8 +109,8 @@ mod request {
     // Encode a packet with a CMD and ROT headers.
     #[test]
     fn rot_hdr() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.cmd_rot_x(
+        let client = Client::new(APP_ID);
+        let request = client.cmd_rot_x(
             QUBIT_ID,
             *CmdOpt::empty().set_notify().set_block(),
             STEP,
@@ -158,8 +158,8 @@ mod request {
     // Encode a packet with a CMD and QUBIT headers.
     #[test]
     fn qubit_hdr() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.cmd_cnot(
+        let client = Client::new(APP_ID);
+        let request = client.cmd_cnot(
             QUBIT_ID,
             *CmdOpt::empty().set_notify().set_block(),
             EXTRA_QUBIT_ID,
@@ -208,8 +208,8 @@ mod request {
     // Encode a packet with a CMD and COMM headers.
     #[test]
     fn comm_hdr() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.cmd_send(
+        let client = Client::new(APP_ID);
+        let request = client.cmd_send(
             QUBIT_ID,
             *CmdOpt::empty().set_notify().set_block(),
             RemoteId {
@@ -269,8 +269,8 @@ mod request {
     #[test]
     #[should_panic(expected = "failed to write whole buffer")]
     fn cqc_hdr_buf_too_small() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.hello();
+        let client = Client::new(APP_ID);
+        let request = client.hello();
 
         // Buffer to write into.
         let mut buffer = vec![0xAA; (request.len() - 1) as usize];
@@ -286,8 +286,8 @@ mod request {
     #[test]
     #[should_panic(expected = "failed to write whole buffer")]
     fn cmd_hdr_buf_too_small() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.cmd_i(QUBIT_ID, CmdOpt::empty());
+        let client = Client::new(APP_ID);
+        let request = client.cmd_i(QUBIT_ID, CmdOpt::empty());
 
         // Buffer to write into.
         let mut buffer = vec![0xAA; (request.len() - 1) as usize];
@@ -302,8 +302,8 @@ mod request {
     // be untouched.
     #[test]
     fn buf_too_large() {
-        let builder = Builder::new(APP_ID);
-        let request = builder.hello();
+        let client = Client::new(APP_ID);
+        let request = client.hello();
 
         // Buffer to write into.
         let write_len: usize = request.len() as usize;

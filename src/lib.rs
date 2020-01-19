@@ -68,7 +68,7 @@
 //!
 //! // Initialise application state with ID 10.
 //! let app_id: u16 = 10;
-//! let builder = builder::Builder::new(app_id);
+//! let client = builder::Client::new(app_id);
 //! let mut coder = bincode::config();
 //! coder.big_endian();
 //!
@@ -79,7 +79,7 @@
 //!         .expect("Connect failed");
 //!
 //!     // Create the qubit.
-//!     let request = builder.cmd_new(0, hdr::CmdOpt::empty());
+//!     let request = client.cmd_new(0, hdr::CmdOpt::empty());
 //!     coder.serialize_into(&stream, &request).expect(
 //!         "Sending failed",
 //!     );
@@ -92,7 +92,7 @@
 //!     let qubit_id = note.qubit_id;
 //!
 //!     // Send the qubit to the remote node.
-//!     let request = builder.cmd_send(
+//!     let request = client.cmd_send(
 //!         qubit_id,
 //!         *hdr::CmdOpt::empty().set_notify(),
 //!         builder::RemoteId {
@@ -117,7 +117,7 @@
 //!         .expect("Connect failed");
 //!
 //!     // Send a request to receive a qubit.
-//!     let request = builder.cmd_recv(0, hdr::CmdOpt::empty());
+//!     let request = client.cmd_recv(0, hdr::CmdOpt::empty());
 //!     coder.serialize_into(&stream, &request).expect(
 //!         "Sending failed",
 //!     );
@@ -451,6 +451,7 @@ pub enum RspInfo {
     Qubit(QubitHdr),
     MeasOut(MeasOutHdr),
     Epr(EprInfo),
+    Time(TimeInfoHdr),
     None,
 }
 
@@ -460,6 +461,7 @@ impl RspInfo {
             RspInfo::Qubit(_) => QubitHdr::hdr_len(),
             RspInfo::MeasOut(_) => MeasOutHdr::hdr_len(),
             RspInfo::Epr(_) => QubitHdr::hdr_len() + EntInfoHdr::hdr_len(),
+            RspInfo::Time(_) => TimeInfoHdr::hdr_len(),
             RspInfo::None => 0,
         }
     }
@@ -467,10 +469,12 @@ impl RspInfo {
     def_is_hdr!(RspInfo, Qubit, is_qubit_hdr);
     def_is_hdr!(RspInfo, MeasOut, is_meas_out_hdr);
     def_is_hdr!(RspInfo, Epr, is_epr_hdr);
+    def_is_hdr!(RspInfo, Time, is_time_info_hdr);
 
     def_get_hdr!(RspInfo, Qubit, QubitHdr, get_qubit_hdr, "QubitHdr");
     def_get_hdr!(RspInfo, MeasOut, MeasOutHdr, get_meas_out_hdr, "MeasOutHdr");
     def_get_hdr!(RspInfo, Epr, EprInfo, get_epr_hdr, "EprInfo");
+    def_get_hdr!(RspInfo, Time, TimeInfoHdr, get_time_info_hdr, "TimeInfoHdr");
 
     pub fn is_some(&self) -> bool {
         match self {
@@ -527,6 +531,7 @@ impl Serialize for RspInfo {
             RspInfo::Qubit(ref h) => s.serialize_field("QubtiHdr", h)?,
             RspInfo::MeasOut(ref h) => s.serialize_field("MeasOutHdr", h)?,
             RspInfo::Epr(ref h) => s.serialize_field("EprInfo", h)?,
+            RspInfo::Time(ref h) => s.serialize_field("TimeInfoHdr", h)?,
             RspInfo::None => (),
         };
         s.end()
@@ -582,6 +587,11 @@ impl<'de> Visitor<'de> for ResponseVisitor {
             MsgType::Tp(Tp::MeasOut) => {
                 de_check_len!("MeasOutHdr", length, MeasOutHdr::hdr_len());
                 RspInfo::MeasOut(de_hdr!(seq))
+            }
+
+            MsgType::Tp(Tp::InfTime) => {
+                de_check_len!("TimeInfoHdr", length, TimeInfoHdr::hdr_len());
+                RspInfo::Time(de_hdr!(seq))
             }
 
             MsgType::Tp(Tp::EprOk) => {
